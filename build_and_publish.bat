@@ -7,6 +7,14 @@ echo   Created by Vath Sathya
 echo ============================================================
 echo.
 
+REM 0. Read single source of truth version.txt
+set /p APP_VER=<version.txt
+set "APP_VER=%APP_VER: =%"
+set "TAG_NAME=v%APP_VER%"
+
+echo Syncing version %TAG_NAME% across C++ and Gradle...
+powershell -ExecutionPolicy Bypass -File "%~dp0sync_version.ps1"
+
 REM 1. Setup Java 17 Environment for Android Gradle
 set "JAVA_HOME=%~dp0jdk\jdk-17.0.10+7"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
@@ -42,11 +50,11 @@ echo.
 
 REM 4. Git Tag & Publish Source Code Release to GitHub
 echo [3/4] Pushing Source Code and Tag to GitHub...
-git add README.md main.cpp resource.rc android/ build_and_publish.bat publish_release.ps1 .gitignore
-git commit -m "Release build v1.0.2: Auto-Update System & Studio Dark GUI"
-git tag -a v1.0.2 -m "Yanich DeskSound Release v1.0.2" -f
+git add README.md main.cpp resource.rc version.txt version.h sync_version.ps1 android/ build_and_publish.bat publish_release.ps1 .gitignore
+git commit -m "Release build %TAG_NAME%: Single source of truth versioning"
+git tag -a %TAG_NAME% -m "Yanich DeskSound Release %TAG_NAME%" -f
 git push origin main --force
-git push origin v1.0.2 --force
+git push origin %TAG_NAME% --force
 
 REM 5. Create Official GitHub Release & Upload Binary Assets via API
 echo.
@@ -56,8 +64,8 @@ powershell -ExecutionPolicy Bypass -File "%~dp0publish_release.ps1"
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ============================================================
-    echo   🎉 SUCCESS! Yanich DeskSound v1.0.2 Published!
-    echo   - Release Link: https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.2
+    echo   🎉 SUCCESS! Yanich DeskSound %TAG_NAME% Published!
+    echo   - Release Link: https://github.com/vathsathya/yanich-desksound/releases/tag/%TAG_NAME%
     echo   - Server GUI: desksound.exe
     echo   - Android App: app-release.apk
     echo ============================================================

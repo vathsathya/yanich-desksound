@@ -20,6 +20,7 @@
 #include <functiondiscoverykeys_devpkey.h>
 #include <winhttp.h>
 #include <dwmapi.h>
+#include "version.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Ole32.lib")
@@ -100,7 +101,7 @@ void CheckForUpdatesAsync() {
                         size_t end = responseStr.find("\"", start + 1);
                         if (end != std::string::npos) {
                             std::string tag = responseStr.substr(start + 1, end - start - 1);
-                            if (tag != "v1.0.2" && tag != "1.0.2" && !tag.empty()) {
+                            if (tag != APP_VERSION_TAG && tag != APP_VERSION_STRING && !tag.empty()) {
                                 g_latestUpdateTag = tag;
                                 g_updateAvailable.store(true);
                                 if (g_hwndMain) {
@@ -1137,7 +1138,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         // Version Pill Badge (Inline next to title)
         RECT rVerBadge = { 200, 18, 258, 40 };
-        DrawPillButtonW(memDC, rVerBadge, L"v1.0.2", RGB(28, 36, 52), RGB(0, 229, 255));
+        DrawPillButtonW(memDC, rVerBadge, Utf8ToWide(APP_VERSION_TAG).c_str(), RGB(28, 36, 52), RGB(0, 229, 255));
 
         if (g_updateAvailable.load()) {
             RECT btnUpdate = { 268, 18, 480, 40 };

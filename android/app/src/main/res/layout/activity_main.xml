@@ -466,12 +466,13 @@
 
         <!-- Footer -->
         <TextView
+            android:id="@+id/tvAppFooter"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
             android:gravity="center"
-            android:text="Created by Vath Sathya"
+            android:text="copyright 2026 by @vathsathya | v1.0.2"
             android:textColor="@color/accent_cyan"
             android:textSize="12sp"
             android:textStyle="bold" />

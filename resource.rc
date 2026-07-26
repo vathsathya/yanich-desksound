@@ -1,10 +1,11 @@
 #include <winver.h>
+#include "version.h"
 
 101 ICON "app_icon.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,2,0
-PRODUCTVERSION  1,0,2,0
+FILEVERSION     APP_VERSION_MAJOR,APP_VERSION_MINOR,APP_VERSION_PATCH,APP_VERSION_BUILD
+PRODUCTVERSION  APP_VERSION_MAJOR,APP_VERSION_MINOR,APP_VERSION_PATCH,APP_VERSION_BUILD
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 FILEFLAGS       0x0L
 FILEOS          VOS_NT_WINDOWS32
@@ -17,12 +18,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "Yanich Audio"
             VALUE "FileDescription",  "DeskSound Audio Streaming Server"
-            VALUE "FileVersion",      "1.0.2.0"
+            VALUE "FileVersion",      APP_VERSION_STRING
             VALUE "InternalName",     "desksound.exe"
             VALUE "LegalCopyright",   "Copyright (c) 2026 Yanich"
             VALUE "OriginalFilename", "desksound.exe"
             VALUE "ProductName",      "Yanich DeskSound"
-            VALUE "ProductVersion",   "1.0.2.0"
+            VALUE "ProductVersion",   APP_VERSION_STRING
         END
     END
     BLOCK "VarFileInfo"

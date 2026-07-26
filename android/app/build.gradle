@@ -3,6 +3,11 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def versionFile = file("${rootDir}/../version.txt")
+def appVersionName = versionFile.exists() ? versionFile.text.trim() : "1.0.2"
+def versionParts = appVersionName.split("\\.")
+def appVersionCode = (versionParts.length >= 3) ? (versionParts[0].toInteger() * 100 + versionParts[1].toInteger() * 10 + versionParts[2].toInteger()) : 3
+
 android {
     namespace 'com.yanich.desksound'
     compileSdk 34
@@ -11,8 +16,8 @@ android {
         applicationId "com.yanich.desksound"
         minSdk 24
         targetSdk 34
-        versionCode 3
-        versionName "1.0.2"
+        versionCode appVersionCode
+        versionName appVersionName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

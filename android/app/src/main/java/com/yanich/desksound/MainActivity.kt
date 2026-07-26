@@ -152,6 +152,13 @@ class MainActivity : AppCompatActivity() {
         binding.btnLatencyHigh.setOnClickListener { setLatencyMode(4) }
 
         updateNetworkAndAudioRouteInfo()
+
+        val ver = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.2"
+        } catch (e: Exception) {
+            "1.0.2"
+        }
+        binding.tvAppFooter.text = "copyright 2026 by @vathsathya | v$ver"
     }
 
     private fun updateVolumeLabel(value: Float) {
@@ -540,9 +547,9 @@ class MainActivity : AppCompatActivity() {
         // 1. Show Top Banner in UI
         binding.layoutUpdateBanner.visibility = android.view.View.VISIBLE
         binding.tvUpdateTitle.text = "🚀 New Update Available: $latestTag!"
-        binding.tvUpdateDesc.text = "Click UPDATE to download latest APK"
+        binding.tvUpdateDesc.text = "Tap UPDATE to install new version"
         binding.btnUpdateNow.setOnClickListener {
-            openUrlInBrowser(downloadUrl)
+            downloadAndInstallApk(downloadUrl)
         }
 
         // 2. Show Material 3 Dialog on startup
@@ -556,7 +563,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("🚀 Update Available ($latestTag)")
             .setMessage(messageText)
             .setPositiveButton("UPDATE NOW") { _, _ ->
-                openUrlInBrowser(downloadUrl)
+                downloadAndInstallApk(downloadUrl)
                 onComplete()
             }
             .setNegativeButton("LATER") { dialog, _ ->
@@ -565,6 +572,82 @@ class MainActivity : AppCompatActivity() {
             }
             .setCancelable(false)
             .show()
+    }
+
+    private fun downloadAndInstallApk(downloadUrl: String) {
+        Toast.makeText(this, "Downloading update in background...", Toast.LENGTH_LONG).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val apkFile = java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "desksound_update.apk")
+                if (apkFile.exists()) {
+                    apkFile.delete()
+                }
+
+                val url = java.net.URL(downloadUrl)
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.setRequestProperty("User-Agent", "YanichDeskSound-Android")
+                connection.connect()
+
+                if (connection.responseCode == 200) {
+                    val input = connection.inputStream
+                    val output = java.io.FileOutputStream(apkFile)
+                    val buffer = ByteArray(8192)
+                    var count: Int
+                    while (input.read(buffer).also { count = it } != -1) {
+                        output.write(buffer, 0, count)
+                    }
+                    output.flush()
+                    output.close()
+                    input.close()
+
+                    withContext(Dispatchers.Main) {
+                        promptPackageInstall(apkFile)
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        openUrlInBrowser(downloadUrl)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Direct download failed. Opening browser...", Toast.LENGTH_SHORT).show()
+                    openUrlInBrowser(downloadUrl)
+                }
+            }
+        }
+    }
+
+    private fun promptPackageInstall(apkFile: java.io.File) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!packageManager.canRequestPackageInstalls()) {
+                    Toast.makeText(this, "Please allow Unknown Apps installation to update", Toast.LENGTH_LONG).show()
+                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = android.net.Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                    return
+                }
+            }
+
+            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apkFile
+            )
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(installIntent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open installer: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun openUrlInBrowser(url: String) {

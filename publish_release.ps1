@@ -1,6 +1,9 @@
+$versionPath = "$PSScriptRoot\version.txt"
+$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath).Trim() } else { "1.0.2" }
+
 param (
-    [string]$TagName = "v1.0.2",
-    [string]$ReleaseName = "Yanich DeskSound v1.0.2",
+    [string]$TagName = "v$versionStr",
+    [string]$ReleaseName = "Yanich DeskSound v$versionStr",
     [string]$RepoOwner = "vathsathya",
     [string]$RepoName = "yanich-desksound"
 )
