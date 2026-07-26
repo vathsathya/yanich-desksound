@@ -786,12 +786,13 @@ void WasapiAudioLoop() {
                                 float peak = std::max(fabsf(rawL), fabsf(rawR));
                                 static float s_agcGain = 1.0f;
                                 float targetGain = 1.0f;
-                                if (peak > 0.85f) {
-                                    targetGain = 0.85f / peak;
-                                } else if (peak > 0.02f && peak < 0.35f) {
-                                    targetGain = 0.35f / peak;
+                                if (peak > 0.75f) {
+                                    targetGain = 0.75f / peak; // Lower loud peaks to prevent speaker crackling/distortion
+                                } else {
+                                    targetGain = 1.0f; // Strict 1:1 pass-through (No volume boosting)
                                 }
-                                s_agcGain += (targetGain - s_agcGain) * 0.10f;
+                                float alpha = (targetGain < s_agcGain) ? 0.40f : 0.05f;
+                                s_agcGain += (targetGain - s_agcGain) * alpha;
                                 rawL *= s_agcGain;
                                 rawR *= s_agcGain;
                             }
