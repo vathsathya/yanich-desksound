@@ -925,11 +925,11 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutW(memDC, 20, 18, L"DeskSound Server", 16);
 
-        RECT rVerBadge = { 260, 18, 435, 40 };
+        RECT rVerBadge = { 270, 18, 445, 40 };
         DrawPillButtonW(memDC, rVerBadge, Utf8ToWide(APP_VERSION_TAG).c_str(), RGB(28, 36, 52), RGB(0, 229, 255));
 
         // Card 1: App Purpose (គោលបំណងកម្មវិធី)
-        RECT c1 = { 20, 55, rc.right - 20, 195 };
+        RECT c1 = { 20, 55, rc.right - 20, 205 };
         DrawRoundedRect(memDC, c1, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -947,34 +947,34 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         SetTextColor(memDC, RGB(140, 155, 180));
         std::wstring strP3 = L"High-performance real-time wireless & USB audio streaming server.";
         std::wstring strP4 = L"Turns your Android smartphones into wireless PC speakers.";
-        TextOutW(memDC, 35, 148, strP3.c_str(), (int)strP3.length());
-        TextOutW(memDC, 35, 166, strP4.c_str(), (int)strP4.length());
+        TextOutW(memDC, 35, 150, strP3.c_str(), (int)strP3.length());
+        TextOutW(memDC, 35, 170, strP4.c_str(), (int)strP4.length());
 
         // Card 2: Developer Info (អ្នកបង្កើត)
-        RECT c2 = { 20, 207, rc.right - 20, 287 };
+        RECT c2 = { 20, 217, rc.right - 20, 297 };
         DrawRoundedRect(memDC, c2, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         std::wstring strDevTitle = L"អ្នកបង្កើត (Developer Info):";
-        TextOutW(memDC, 35, 220, strDevTitle.c_str(), (int)strDevTitle.length());
+        TextOutW(memDC, 35, 230, strDevTitle.c_str(), (int)strDevTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         std::wstring strDevName = L"Vath Sathya (@vathsathya)";
-        TextOutW(memDC, 35, 248, strDevName.c_str(), (int)strDevName.length());
+        TextOutW(memDC, 35, 258, strDevName.c_str(), (int)strDevName.length());
 
-        RECT btnGitHub = { rc.right - 170, 242, rc.right - 35, 270 };
+        RECT btnGitHub = { rc.right - 170, 252, rc.right - 35, 280 };
         DrawPillButtonW(memDC, btnGitHub, L"GitHub Repo", RGB(32, 40, 58), RGB(0, 229, 255));
 
         // Card 3: Software Update (បច្ចុប្បន្នភាព)
-        RECT c3 = { 20, 299, rc.right - 20, 429 };
+        RECT c3 = { 20, 309, rc.right - 20, 439 };
         DrawRoundedRect(memDC, c3, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         std::wstring strUpdTitle = L"Software Update (បច្ចុប្បន្នភាព):";
-        TextOutW(memDC, 35, 312, strUpdTitle.c_str(), (int)strUpdTitle.length());
+        TextOutW(memDC, 35, 322, strUpdTitle.c_str(), (int)strUpdTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
@@ -987,17 +987,17 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         } else {
             updateStatusText = L"You are using the latest version (" + Utf8ToWide(APP_VERSION_TAG) + L")";
         }
-        TextOutW(memDC, 35, 340, updateStatusText.c_str(), (int)updateStatusText.length());
+        TextOutW(memDC, 35, 350, updateStatusText.c_str(), (int)updateStatusText.length());
 
-        RECT btnCheckUpdate = { 35, 372, 220, 410 };
-        RECT btnUpdateNow   = { 235, 372, 420, 410 };
+        RECT btnCheckUpdate = { 35, 382, 220, 420 };
+        RECT btnUpdateNow   = { 235, 382, 420, 420 };
 
         bool isUpdAvail = g_updateAvailable.load();
         DrawPillButtonW(memDC, btnCheckUpdate, L"CHECK FOR UPDATES", RGB(32, 40, 58), RGB(0, 229, 255));
         DrawPillButtonW(memDC, btnUpdateNow, isUpdAvail ? L"UPDATE NOW" : L"VIEW RELEASES", isUpdAvail ? RGB(0, 229, 255) : RGB(28, 36, 52), isUpdAvail ? RGB(18, 22, 33) : RGB(160, 175, 200));
 
         // Bottom Close Button
-        RECT btnCloseDlg = { rc.right - 120, 445, rc.right - 20, 477 };
+        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 20, 484 };
         DrawPillButtonW(memDC, btnCloseDlg, L"CLOSE", RGB(40, 50, 72), RGB(255, 255, 255));
 
         BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
@@ -1014,13 +1014,13 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        RECT btnGitHub = { rc.right - 170, 242, rc.right - 35, 270 };
+        RECT btnGitHub = { rc.right - 170, 252, rc.right - 35, 280 };
         if (PtInRect(&btnGitHub, pt)) {
             ShellExecuteW(NULL, L"open", L"https://github.com/vathsathya/yanich-desksound", NULL, NULL, SW_SHOWNORMAL);
             break;
         }
 
-        RECT btnCheckUpdate = { 35, 372, 220, 410 };
+        RECT btnCheckUpdate = { 35, 382, 220, 420 };
         if (PtInRect(&btnCheckUpdate, pt)) {
             g_isCheckingUpdateInAbout.store(true);
             InvalidateRect(hwnd, NULL, FALSE);
@@ -1033,14 +1033,14 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
         }
 
-        RECT btnUpdateNow = { 235, 372, 420, 410 };
+        RECT btnUpdateNow = { 235, 382, 420, 420 };
         if (PtInRect(&btnUpdateNow, pt)) {
             std::string url = g_updateAvailable.load() ? g_latestUpdateUrl : "https://github.com/vathsathya/yanich-desksound/releases/latest";
             ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
             break;
         }
 
-        RECT btnCloseDlg = { rc.right - 120, 445, rc.right - 20, 477 };
+        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 20, 484 };
         if (PtInRect(&btnCloseDlg, pt)) {
             DestroyWindow(hwnd);
             break;
@@ -1075,7 +1075,7 @@ void ShowAboutDialog(HWND hwndParent) {
 
     RegisterClassExW(&wc);
 
-    int w = 460, h = 515;
+    int w = 470, h = 530;
     RECT rParent;
     GetWindowRect(hwndParent, &rParent);
     int x = rParent.left + (rParent.right - rParent.left - w) / 2;
