@@ -57,7 +57,7 @@ $bodyJson = @{
     tag_name         = $TagName
     target_commitish = "main"
     name             = $ReleaseName
-    body             = "## Yanich DeskSound $TagName Official Release`n`n**Full Release Assets:**`n- yanich-desksound_$TagName.exe (Windows Desktop Server GUI)`n- yanich-desksound_$TagName.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in $TagName:**`n- **Auto-Update System**: Added Startup Auto-Update check on launch for Android Client App & Windows Server GUI.`n- **Windows Server GUI**: DWM Immersive Dark Mode integration, Studio Slate Cards (14px radius), Inline Version Badge, dynamic signal peak colors.`n- **Android Receiver Client**: Material 3 Update Dialog, direct in-app auto-installer, fixed bottom copyright footer.`n`nCreated by Vath Sathya."
+    body             = "## Yanich DeskSound ${TagName} Official Release`n`n**Full Release Assets:**`n- yanich-desksound_${TagName}.exe (Windows Desktop Server GUI)`n- yanich-desksound_${TagName}.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in ${TagName}:**`n- **Auto-Update System**: Added Startup Auto-Update check on launch for Android Client App & Windows Server GUI.`n- **Windows Server GUI**: DWM Immersive Dark Mode integration, Studio Slate Cards (14px radius), Inline Version Badge, dynamic signal peak colors.`n- **Android Receiver Client**: Material 3 Update Dialog, direct in-app auto-installer, fixed bottom copyright footer.`n`nCreated by Vath Sathya."
     draft            = $false
     prerelease       = $false
 } | ConvertTo-Json

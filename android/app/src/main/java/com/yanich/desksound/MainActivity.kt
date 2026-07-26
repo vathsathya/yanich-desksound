@@ -518,6 +518,7 @@ class MainActivity : AppCompatActivity() {
             val isNewer = latestTag != null && isVersionNewer(latestTag, currentVersion)
 
             withContext(Dispatchers.Main) {
+                if (isFinishing || isDestroyed) return@withContext
                 if (isNewer && latestTag != null && downloadUrl != null) {
                     showUpdateAvailable(latestTag, downloadUrl, releaseBody, currentVersion, onComplete)
                 } else {
@@ -528,54 +529,68 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isVersionNewer(latestTag: String, currentVersion: String): Boolean {
-        val cleanTag = latestTag.trimStart('v', 'V').trim()
-        val cleanCurrent = currentVersion.trimStart('v', 'V').trim()
+        try {
+            val cleanTag = latestTag.trimStart('v', 'V').trim()
+            val cleanCurrent = currentVersion.trimStart('v', 'V').trim()
 
-        val tagParts = cleanTag.split(".").mapNotNull { it.toIntOrNull() }
-        val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
+            val tagParts = cleanTag.split(".").mapNotNull { it.toIntOrNull() }
+            val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
 
-        for (i in 0 until maxOf(tagParts.size, currentParts.size)) {
-            val tagVal = tagParts.getOrElse(i) { 0 }
-            val curVal = currentParts.getOrElse(i) { 0 }
-            if (tagVal > curVal) return true
-            if (tagVal < curVal) return false
+            for (i in 0 until maxOf(tagParts.size, currentParts.size)) {
+                val tagVal = tagParts.getOrElse(i) { 0 }
+                val curVal = currentParts.getOrElse(i) { 0 }
+                if (tagVal > curVal) return true
+                if (tagVal < curVal) return false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return false
     }
 
     private fun showUpdateAvailable(latestTag: String, downloadUrl: String, body: String?, currentVersion: String, onComplete: () -> Unit) {
-        // 1. Show Top Banner in UI
-        binding.layoutUpdateBanner.visibility = android.view.View.VISIBLE
-        binding.tvUpdateTitle.text = "🚀 New Update Available: $latestTag!"
-        binding.tvUpdateDesc.text = "Tap UPDATE to install new version"
-        binding.btnUpdateNow.setOnClickListener {
-            downloadAndInstallApk(downloadUrl)
+        if (isFinishing || isDestroyed) {
+            onComplete()
+            return
         }
 
-        // 2. Show Material 3 Dialog on startup
-        val messageText = if (!body.isNullOrBlank()) {
-            "A new version of Yanich DeskSound ($latestTag) is available.\n\nRelease Notes:\n$body\n\nCurrent version: v$currentVersion\n\nWould you like to update now?"
-        } else {
-            "A new version of Yanich DeskSound ($latestTag) is available.\n\nCurrent version: v$currentVersion\n\nWould you like to update now?"
-        }
-
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle("🚀 Update Available ($latestTag)")
-            .setMessage(messageText)
-            .setPositiveButton("UPDATE NOW") { _, _ ->
+        try {
+            // 1. Show Top Banner in UI
+            binding.layoutUpdateBanner.visibility = android.view.View.VISIBLE
+            binding.tvUpdateTitle.text = "🚀 New Update Available: $latestTag!"
+            binding.tvUpdateDesc.text = "Tap UPDATE to install new version"
+            binding.btnUpdateNow.setOnClickListener {
                 downloadAndInstallApk(downloadUrl)
-                onComplete()
             }
-            .setNegativeButton("LATER") { dialog, _ ->
-                dialog.dismiss()
-                onComplete()
+
+            // 2. Show Material 3 Dialog on startup
+            val messageText = if (!body.isNullOrBlank()) {
+                "A new version of Yanich DeskSound ($latestTag) is available.\n\nRelease Notes:\n$body\n\nCurrent version: v$currentVersion\n\nWould you like to update now?"
+            } else {
+                "A new version of Yanich DeskSound ($latestTag) is available.\n\nCurrent version: v$currentVersion\n\nWould you like to update now?"
             }
-            .setCancelable(false)
-            .show()
+
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("🚀 Update Available ($latestTag)")
+                .setMessage(messageText)
+                .setPositiveButton("UPDATE NOW") { _, _ ->
+                    downloadAndInstallApk(downloadUrl)
+                    onComplete()
+                }
+                .setNegativeButton("LATER") { dialog, _ ->
+                    dialog.dismiss()
+                    onComplete()
+                }
+                .setCancelable(false)
+                .show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onComplete()
+        }
     }
 
     private fun downloadAndInstallApk(downloadUrl: String) {
-        Toast.makeText(this, "Downloading update in background...", Toast.LENGTH_LONG).show()
+        Toast.makeText(applicationContext, "Downloading update in background...", Toast.LENGTH_LONG).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -604,7 +619,9 @@ class MainActivity : AppCompatActivity() {
                     input.close()
 
                     withContext(Dispatchers.Main) {
-                        promptPackageInstall(apkFile)
+                        if (!isFinishing && !isDestroyed) {
+                            promptPackageInstall(apkFile)
+                        }
                     }
                 } else {
                     withContext(Dispatchers.Main) {
@@ -613,7 +630,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Direct download failed. Opening browser...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(applicationContext, "Direct download failed. Opening browser...", Toast.LENGTH_SHORT).show()
                     openUrlInBrowser(downloadUrl)
                 }
             }
@@ -622,9 +639,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun promptPackageInstall(apkFile: java.io.File) {
         try {
+            if (!apkFile.exists()) return
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!packageManager.canRequestPackageInstalls()) {
-                    Toast.makeText(this, "Please allow Unknown Apps installation to update", Toast.LENGTH_LONG).show()
+                    Toast.makeText(applicationContext, "Please allow Unknown Apps installation to update", Toast.LENGTH_LONG).show()
                     val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                         data = android.net.Uri.parse("package:$packageName")
                     }
@@ -634,8 +653,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             val apkUri = androidx.core.content.FileProvider.getUriForFile(
-                this,
-                "$packageName.fileprovider",
+                applicationContext,
+                "com.yanich.desksound.fileprovider",
                 apkFile
             )
 
@@ -646,16 +665,20 @@ class MainActivity : AppCompatActivity() {
             }
             startActivity(installIntent)
         } catch (e: Exception) {
-            Toast.makeText(this, "Could not open installer: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+            Toast.makeText(applicationContext, "Could not open installer: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun openUrlInBrowser(url: String) {
         try {
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "Could not open link: ${e.message}", Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
+            Toast.makeText(applicationContext, "Could not open link: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }
