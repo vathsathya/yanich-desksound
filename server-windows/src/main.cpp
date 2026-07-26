@@ -286,11 +286,11 @@ HBRUSH g_hbrClassBg  = NULL;
 HBRUSH g_hbrStaticBg = NULL;
 
 void InitFonts() {
-    if (!g_hFontTitle)  g_hFontTitle  = CreateFontW(-20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
-    if (!g_hFontBold)   g_hFontBold   = CreateFontW(-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
-    if (!g_hFontSub)    g_hFontSub    = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
-    if (!g_hFontBtn)    g_hFontBtn    = CreateFontW(-12, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
-    if (!g_hFontFooter) g_hFontFooter = CreateFontW(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
+    if (!g_hFontTitle)  g_hFontTitle  = CreateFontW(-20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontBold)   g_hFontBold   = CreateFontW(-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontSub)    g_hFontSub    = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontBtn)    g_hFontBtn    = CreateFontW(-12, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontFooter) g_hFontFooter = CreateFontW(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
 }
 
 void CleanupFonts() {
@@ -1008,35 +1008,35 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         RECT rVerBadge = { 270, 18, 445, 40 };
         DrawPillButtonW(memDC, rVerBadge, Utf8ToWide(APP_VERSION_TAG).c_str(), RGB(28, 36, 52), RGB(0, 229, 255));
 
-        // Card 1: App Purpose (គោលបំណងកម្មវិធី)
+        // Card 1: App Purpose
         RECT c1 = { 20, 55, rc.right - 20, 205 };
         DrawRoundedRect(memDC, c1, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring strPurposeTitle = L"គោលបំណងកម្មវិធី (App Purpose):";
+        std::wstring strPurposeTitle = L"App Purpose:";
         TextOutW(memDC, 35, 68, strPurposeTitle.c_str(), (int)strPurposeTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
-        std::wstring strP1 = L"DeskSound គឺជាកម្មវិធីបញ្ជូន និងទទួលសំឡេង Real-time";
-        std::wstring strP2 = L"ដែលផ្ដល់នូវគុណភាពសំឡេងខ្ពស់ និង Latency ទាបបំផុត (Low-Latency)។";
+        std::wstring strP1 = L"DeskSound is a high-performance real-time wireless & USB audio receiver.";
+        std::wstring strP2 = L"It streams low-latency, high-fidelity PC audio to your Android devices.";
         TextOutW(memDC, 35, 96, strP1.c_str(), (int)strP1.length());
         TextOutW(memDC, 35, 118, strP2.c_str(), (int)strP2.length());
 
         SetTextColor(memDC, RGB(140, 155, 180));
-        std::wstring strP3 = L"High-performance real-time wireless & USB audio streaming server.";
-        std::wstring strP4 = L"Turns your Android smartphones into wireless PC speakers.";
+        std::wstring strP3 = L"Ultra-low latency audio (~3ms via USB Tethering / ~15ms via 5GHz Wi-Fi).";
+        std::wstring strP4 = L"Turns your smartphones into stereo speakers for your PC.";
         TextOutW(memDC, 35, 150, strP3.c_str(), (int)strP3.length());
         TextOutW(memDC, 35, 170, strP4.c_str(), (int)strP4.length());
 
-        // Card 2: Developer Info (អ្នកបង្កើត)
+        // Card 2: Developer Info
         RECT c2 = { 20, 217, rc.right - 20, 297 };
         DrawRoundedRect(memDC, c2, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring strDevTitle = L"អ្នកបង្កើត (Developer Info):";
+        std::wstring strDevTitle = L"Developer Info:";
         TextOutW(memDC, 35, 230, strDevTitle.c_str(), (int)strDevTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -1047,13 +1047,13 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         RECT btnGitHub = { rc.right - 170, 252, rc.right - 35, 280 };
         DrawPillButtonW(memDC, btnGitHub, L"GitHub Repo", RGB(32, 40, 58), RGB(0, 229, 255));
 
-        // Card 3: Software Update (បច្ចុប្បន្នភាព)
+        // Card 3: Software Update
         RECT c3 = { 20, 309, rc.right - 20, 439 };
         DrawRoundedRect(memDC, c3, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring strUpdTitle = L"Software Update (បច្ចុប្បន្នភាព):";
+        std::wstring strUpdTitle = L"Software Update:";
         TextOutW(memDC, 35, 322, strUpdTitle.c_str(), (int)strUpdTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
