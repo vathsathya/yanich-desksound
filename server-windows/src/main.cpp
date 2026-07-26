@@ -805,18 +805,23 @@ void WasapiAudioLoop() {
                         static float s_optEnvGain = 1.0f;
                         if (g_optimizeVolume.load()) {
                             float targetGain = 1.0f;
-                            if (frameMaxPeak > 0.003f) {
-                                if (frameMaxPeak < 0.40f) {
-                                    targetGain = std::min(2.2f, 0.75f / (frameMaxPeak + 0.03f));
-                                } else if (frameMaxPeak > 0.75f) {
-                                    targetGain = 0.75f / frameMaxPeak;
+                            if (frameMaxPeak > 0.002f) {
+                                const float targetLevel = 0.45f; // Comfortable, balanced target listening level ("លឺម៉ាល្មម")
+                                if (frameMaxPeak < 0.30f) {
+                                    // Gently lift quiet audio (max 1.6x boost)
+                                    targetGain = std::min(1.6f, targetLevel / (frameMaxPeak + 0.04f));
+                                } else if (frameMaxPeak > 0.50f) {
+                                    // Attenuate loud audio to prevent blasting
+                                    targetGain = targetLevel / frameMaxPeak;
                                 } else {
-                                    targetGain = 1.0f + (0.75f - frameMaxPeak) * 0.5f;
+                                    // Smooth linear blend for moderate audio
+                                    targetGain = 1.0f + (targetLevel - frameMaxPeak) * 0.8f;
                                 }
                             } else {
                                 targetGain = 1.0f;
                             }
-                            float alpha = (targetGain < s_optEnvGain) ? 0.20f : 0.015f;
+                            // Fast attack (0.25f) to curb loud bursts; smooth release (0.012f) for steady volume
+                            float alpha = (targetGain < s_optEnvGain) ? 0.25f : 0.012f;
                             s_optEnvGain += (targetGain - s_optEnvGain) * alpha;
                         } else {
                             s_optEnvGain = 1.0f;
@@ -830,11 +835,13 @@ void WasapiAudioLoop() {
                                 rawL *= s_optEnvGain;
                                 rawR *= s_optEnvGain;
 
-                                if (rawL > 0.85f) rawL = 0.85f + 0.14f * tanhf((rawL - 0.85f) / 0.14f);
-                                else if (rawL < -0.85f) rawL = -0.85f - 0.14f * tanhf((-rawL - 0.85f) / 0.14f);
+                                // Hard Speaker Safety Ceiling at 0.70f (-3.1 dB) to guarantee zero peak overload or speaker damage
+                                const float kSafetyCeiling = 0.70f;
+                                if (rawL > kSafetyCeiling) rawL = kSafetyCeiling;
+                                else if (rawL < -kSafetyCeiling) rawL = -kSafetyCeiling;
 
-                                if (rawR > 0.85f) rawR = 0.85f + 0.14f * tanhf((rawR - 0.85f) / 0.14f);
-                                else if (rawR < -0.85f) rawR = -0.85f - 0.14f * tanhf((-rawR - 0.85f) / 0.14f);
+                                if (rawR > kSafetyCeiling) rawR = kSafetyCeiling;
+                                else if (rawR < -kSafetyCeiling) rawR = -kSafetyCeiling;
                             }
 
                             float sampleL = rawL * volL;
