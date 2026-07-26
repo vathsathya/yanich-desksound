@@ -1151,7 +1151,7 @@ LRESULT CALLBACK LogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         DwmSetWindowAttribute(hwnd, 19, &darkMode, sizeof(darkMode));
 
         hEditLog = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
-                                   20, 50, 465, 305, hwnd, (HMENU)2001, GetModuleHandle(NULL), NULL);
+                                   20, 50, 475, 305, hwnd, (HMENU)2001, GetModuleHandle(NULL), NULL);
         if (g_hFontSub) SendMessage(hEditLog, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
 
         std::wstring logs = GetLogHistory();
@@ -1174,9 +1174,9 @@ LRESULT CALLBACK LogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetBkMode(memDC, TRANSPARENT);
         TextOutW(memDC, 20, 15, L"📋 Server Activity Logs", 23);
 
-        RECT btnCopy  = { 20, 372, 150, 404 };
-        RECT btnClear = { 160, 372, 280, 404 };
-        RECT btnClose = { rc.right - 130, 372, rc.right - 20, 404 };
+        RECT btnCopy  = { 20, 375, 160, 410 };
+        RECT btnClear = { 175, 375, 315, 410 };
+        RECT btnClose = { rc.right - 140, 375, rc.right - 20, 410 };
 
         DrawPillButtonW(memDC, btnCopy, L"COPY LOGS", RGB(32, 40, 58), RGB(0, 229, 255));
         DrawPillButtonW(memDC, btnClear, L"CLEAR LOGS", RGB(32, 40, 58), RGB(200, 215, 235));
@@ -1195,9 +1195,9 @@ LRESULT CALLBACK LogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         POINT pt = { mx, my };
         RECT rc; GetClientRect(hwnd, &rc);
 
-        RECT btnCopy  = { 20, 372, 150, 404 };
-        RECT btnClear = { 160, 372, 280, 404 };
-        RECT btnClose = { rc.right - 130, 372, rc.right - 20, 404 };
+        RECT btnCopy  = { 20, 375, 160, 410 };
+        RECT btnClear = { 175, 375, 315, 410 };
+        RECT btnClose = { rc.right - 140, 375, rc.right - 20, 410 };
 
         if (PtInRect(&btnCopy, pt)) {
             std::wstring logs = GetLogHistory();
@@ -1249,7 +1249,7 @@ void ShowLogDialog(HWND hwndParent) {
     wc.lpszClassName = L"YanichDeskSoundLogClass";
     RegisterClassExW(&wc);
 
-    int w = 505, h = 430;
+    int w = 530, h = 480;
     RECT rParent; GetWindowRect(hwndParent, &rParent);
     int x = rParent.left + (rParent.right - rParent.left - w) / 2;
     int y = rParent.top + (rParent.bottom - rParent.top - h) / 2;
@@ -1871,7 +1871,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
 
-        std::wstring statusText = isActive ? L"Server Status: RUNNING (Port 5000)" : L"Server Status: STOPPED";
+        std::wstring statusText = isActive ? L"Status: RUNNING (5000)" : L"Status: STOPPED";
         TextOutW(memDC, 55, 28, statusText.c_str(), (int)statusText.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -1936,14 +1936,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT btnDeviceDropdown = { 145, 78, 480, 100 };
         DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(32, 40, 58), RGB(0, 229, 255));
 
-        RECT btnToggleServer = { 380, 26, 480, 52 };
+        RECT btnToggleServer = { rcClient.right - 110, 24, rcClient.right - 20, 50 };
         if (isActive) {
             DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(55, 25, 33), RGB(255, 82, 82));
         } else {
             DrawPillButtonW(memDC, btnToggleServer, L"START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
         }
 
-        RECT btnLogsHeader = { 295, 26, 365, 52 };
+        RECT btnLogsHeader = { rcClient.right - 200, 24, rcClient.right - 115, 50 };
         DrawPillButtonW(memDC, btnLogsHeader, L"📋 LOGS", RGB(34, 42, 60), RGB(0, 229, 255));
 
         // Active Clients Card
