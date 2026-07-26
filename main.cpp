@@ -50,6 +50,8 @@ std::atomic<float> g_masterVolume{100.0f}; // 0% to 100%
 std::atomic<float> g_gainL{100.0f};        // 0% to 100% (Left Volume)
 std::atomic<float> g_gainR{100.0f};        // 0% to 100% (Right Volume)
 std::atomic<bool> g_isMuted{false};
+std::atomic<bool> g_isMutedL{false};
+std::atomic<bool> g_isMutedR{false};
 
 std::atomic<float> g_rmsL{0.0f};
 std::atomic<float> g_rmsR{0.0f};
@@ -310,8 +312,8 @@ void WasapiAudioLoop() {
                         g_rmsR.store(0.0f);
                     } else if (g_pwfx->wBitsPerSample == 32 && g_pwfx->nChannels == 2) {
                         float masterLinear = g_isMuted.load() ? 0.0f : (g_masterVolume.load() / 100.0f);
-                        float gainLLinear = (g_gainL.load() / 100.0f);
-                        float gainRLinear = (g_gainR.load() / 100.0f);
+                        float gainLLinear  = g_isMutedL.load() ? 0.0f : (g_gainL.load() / 100.0f);
+                        float gainRLinear  = g_isMutedR.load() ? 0.0f : (g_gainR.load() / 100.0f);
 
                         float volL = masterLinear * gainLLinear;
                         float volR = masterLinear * gainRLinear;
@@ -507,43 +509,32 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
+        RECT btnMuteMaster = { 345, 388, 425, 410 };
+        RECT btnMuteLeft   = { 345, 426, 425, 448 };
+        RECT btnMuteRight  = { 345, 464, 425, 486 };
+
         if (PtInRect(&btnReset, pt)) {
             g_masterVolume.store(100.0f);
             g_gainL.store(100.0f);
             g_gainR.store(100.0f);
+            g_isMuted.store(false);
+            g_isMutedL.store(false);
+            g_isMutedR.store(false);
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (PtInRect(&btnMasterMinus, pt)) {
-            float v = g_masterVolume.load() - 10.0f;
-            g_masterVolume.store(std::max(0.0f, v));
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-        if (PtInRect(&btnMasterPlus, pt)) {
-            float v = g_masterVolume.load() + 10.0f;
-            g_masterVolume.store(std::min(100.0f, v));
+        if (PtInRect(&btnMuteMaster, pt)) {
+            g_isMuted.store(!g_isMuted.load());
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (PtInRect(&btnLeftMinus, pt)) {
-            float v = g_gainL.load() - 10.0f;
-            g_gainL.store(std::max(0.0f, v));
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-        if (PtInRect(&btnLeftPlus, pt)) {
-            float v = g_gainL.load() + 10.0f;
-            g_gainL.store(std::min(100.0f, v));
+        if (PtInRect(&btnMuteLeft, pt)) {
+            g_isMutedL.store(!g_isMutedL.load());
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (PtInRect(&btnRightMinus, pt)) {
-            float v = g_gainR.load() - 10.0f;
-            g_gainR.store(std::max(0.0f, v));
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-        if (PtInRect(&btnRightPlus, pt)) {
-            float v = g_gainR.load() + 10.0f;
-            g_gainR.store(std::min(100.0f, v));
+        if (PtInRect(&btnMuteRight, pt)) {
+            g_isMutedR.store(!g_isMutedR.load());
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
@@ -840,20 +831,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT rKnobR = { kxR - 7, 468, kxR + 7, 482 };
         DrawRoundedRect(memDC, rKnobR, RGB(255, 255, 255), 14);
 
-        RECT btnMasterMinus = { 345, 388, 385, 410 };
-        RECT btnMasterPlus  = { 390, 388, 430, 410 };
-        DrawPillButton(memDC, btnMasterMinus, "-10");
-        DrawPillButton(memDC, btnMasterPlus,  "+10");
+        RECT btnMuteMaster = { 345, 388, 425, 410 };
+        RECT btnMuteLeft   = { 345, 426, 425, 448 };
+        RECT btnMuteRight  = { 345, 464, 425, 486 };
 
-        RECT btnLeftMinus   = { 345, 426, 385, 448 };
-        RECT btnLeftPlus    = { 390, 426, 430, 448 };
-        DrawPillButton(memDC, btnLeftMinus, "-10", RGB(34, 42, 60), RGB(255, 255, 255));
-        DrawPillButton(memDC, btnLeftPlus,  "+10", RGB(34, 42, 60), RGB(255, 255, 255));
+        bool isMutedM = g_isMuted.load();
+        bool isMutedL = g_isMutedL.load();
+        bool isMutedR = g_isMutedR.load();
 
-        RECT btnRightMinus  = { 345, 464, 385, 486 };
-        RECT btnRightPlus   = { 390, 464, 430, 486 };
-        DrawPillButton(memDC, btnRightMinus, "-10", RGB(34, 42, 60), RGB(255, 255, 255));
-        DrawPillButton(memDC, btnRightPlus,  "+10", RGB(34, 42, 60), RGB(255, 255, 255));
+        DrawPillButton(memDC, btnMuteMaster, isMutedM ? "Muted" : "Mute", isMutedM ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedM ? RGB(255, 255, 255) : RGB(0, 229, 255));
+        DrawPillButton(memDC, btnMuteLeft,   isMutedL ? "Muted" : "Mute", isMutedL ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedL ? RGB(255, 255, 255) : RGB(0, 230, 118));
+        DrawPillButton(memDC, btnMuteRight,  isMutedR ? "Muted" : "Mute", isMutedR ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedR ? RGB(255, 255, 255) : RGB(0, 230, 118));
 
         char strMaster[16], strL[16], strR[16];
         snprintf(strMaster, sizeof(strMaster), "%d%%", (int)g_masterVolume.load());
