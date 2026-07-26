@@ -1682,7 +1682,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT rTrackR_Bg = { trackX1, 472, trackX2, 478 };
         DrawRoundedRect(memDC, rTrackR_Bg, RGB(24, 30, 44), 6);
         if (gRNorm > 0.0f) {
-            RECT rTrackR_Fill = { trackX1, 472, trackX1 + (int)(gRNorm * trackW), 440 };
+            RECT rTrackR_Fill = { trackX1, 472, trackX1 + (int)(gRNorm * trackW), 478 };
             DrawRoundedRect(memDC, rTrackR_Fill, RGB(0, 229, 255), 6);
         }
         int kxR = trackX1 + (int)(gRNorm * trackW);
