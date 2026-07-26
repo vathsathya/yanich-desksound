@@ -1475,12 +1475,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutW(memDC, 20, 20, L"Yanich DeskSound", 16);
 
-        // Version Pill Badge (Inline next to title)
-        RECT rVerBadge = { 200, 18, 258, 40 };
-        DrawPillButtonW(memDC, rVerBadge, Utf8ToWide(APP_VERSION_TAG).c_str(), RGB(28, 36, 52), RGB(0, 229, 255));
-
         if (g_updateAvailable.load()) {
-            RECT btnUpdate = { 268, 18, 480, 40 };
+            RECT btnUpdate = { rcClient.right - 180, 18, rcClient.right - 20, 40 };
             std::wstring btnText = L"🚀 UPDATE " + Utf8ToWide(g_latestUpdateTag);
             DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), RGB(0, 229, 255), RGB(18, 22, 33));
         }
@@ -1858,7 +1854,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     WNDCLASSEXW wc = { sizeof(WNDCLASSEXW), CS_CLASSDC, WndProc, 0L, 0L, hInstance, LoadIcon(hInstance, MAKEINTRESOURCE(101)), LoadCursor(NULL, IDC_ARROW), g_hbrClassBg, NULL, L"YanichDeskSoundGUIClass", NULL };
     RegisterClassExW(&wc);
 
-    HWND hwnd = CreateWindowExW(0, L"YanichDeskSoundGUIClass", L"Yanich DeskSound Server", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 590, NULL, NULL, hInstance, NULL);
+    std::wstring winTitle = L"Yanich DeskSound Server " + Utf8ToWide(APP_VERSION_TAG);
+    HWND hwnd = CreateWindowExW(0, L"YanichDeskSoundGUIClass", winTitle.c_str(), WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 590, NULL, NULL, hInstance, NULL);
     g_hwndMain = hwnd;
 
     bool startSilent = (strstr(lpCmdLine, "-silent") != NULL || strstr(lpCmdLine, "-service") != NULL);
