@@ -1,14 +1,21 @@
-$versionPath = "$PSScriptRoot\version.txt"
-$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath).Trim() } else { "1.0.2" }
-
 param (
-    [string]$TagName = "v$versionStr",
-    [string]$ReleaseName = "Yanich DeskSound v$versionStr",
+    [string]$TagName = "",
+    [string]$ReleaseName = "",
     [string]$RepoOwner = "vathsathya",
     [string]$RepoName = "yanich-desksound"
 )
 
 $ErrorActionPreference = "Stop"
+
+$versionPath = "$PSScriptRoot\version.txt"
+$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "1.0.2" }
+
+if ([string]::IsNullOrWhiteSpace($TagName)) {
+    $TagName = "v$versionStr"
+}
+if ([string]::IsNullOrWhiteSpace($ReleaseName)) {
+    $ReleaseName = "Yanich DeskSound $TagName"
+}
 
 Write-Host "Retrieving GitHub access token..." -ForegroundColor Cyan
 $credInput = "protocol=https`nhost=github.com`n"
@@ -50,7 +57,7 @@ $bodyJson = @{
     tag_name         = $TagName
     target_commitish = "main"
     name             = $ReleaseName
-    body             = "## Yanich DeskSound v1.0.2 Official Release`n`n**Full Release Assets:**`n- desksound.exe (Windows Desktop Server GUI)`n- app-release.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in v1.0.2:**`n- **Auto-Update System**: Added Startup Auto-Update check on launch for Android Client App & Windows Server GUI.`n- **Windows Server GUI**: DWM Immersive Dark Mode integration, Studio Slate Cards (14px radius), Inline Version Badge, dynamic signal peak colors.`n- **Android Receiver Client**: Material 3 Update Dialog, top notification banner, Coroutine async release query.`n`nCreated by Vath Sathya."
+    body             = "## Yanich DeskSound $TagName Official Release`n`n**Full Release Assets:**`n- yanich-desksound_$TagName.exe (Windows Desktop Server GUI)`n- yanich-desksound_$TagName.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in $TagName:**`n- **Auto-Update System**: Added Startup Auto-Update check on launch for Android Client App & Windows Server GUI.`n- **Windows Server GUI**: DWM Immersive Dark Mode integration, Studio Slate Cards (14px radius), Inline Version Badge, dynamic signal peak colors.`n- **Android Receiver Client**: Material 3 Update Dialog, direct in-app auto-installer, fixed bottom copyright footer.`n`nCreated by Vath Sathya."
     draft            = $false
     prerelease       = $false
 } | ConvertTo-Json
@@ -87,8 +94,25 @@ function Upload-FileAsset($filePath, $contentType) {
 $workDir = $PSScriptRoot
 if (-not $workDir) { $workDir = Get-Location }
 
-Upload-FileAsset -filePath "$workDir\desksound.exe" -contentType "application/octet-stream"
-Upload-FileAsset -filePath "$workDir\app-release.apk" -contentType "application/vnd.android.package-archive"
+$exeName = "yanich-desksound_$TagName.exe"
+$apkName = "yanich-desksound_$TagName.apk"
 
-Write-Host "`nGitHub Release v1.0.0 successfully published with all binary assets!" -ForegroundColor Green
+$exePath = "$workDir\$exeName"
+if (-not (Test-Path $exePath)) {
+    if (Test-Path "$workDir\desksound.exe") {
+        Copy-Item "$workDir\desksound.exe" $exePath -Force
+    }
+}
+
+$apkPath = "$workDir\$apkName"
+if (-not (Test-Path $apkPath)) {
+    if (Test-Path "$workDir\app-release.apk") {
+        Copy-Item "$workDir\app-release.apk" $apkPath -Force
+    }
+}
+
+Upload-FileAsset -filePath $exePath -contentType "application/octet-stream"
+Upload-FileAsset -filePath $apkPath -contentType "application/vnd.android.package-archive"
+
+Write-Host "`nGitHub Release $TagName successfully published with all binary assets!" -ForegroundColor Green
 Write-Host "Release URL: $($newRelease.html_url)" -ForegroundColor Yellow

@@ -39,6 +39,11 @@ android {
     buildFeatures {
         viewBinding true
     }
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "yanich-desksound_v${variant.versionName}.apk"
+        }
+    }
 }
 
 dependencies {
