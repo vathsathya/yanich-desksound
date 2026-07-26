@@ -7,8 +7,9 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$versionPath = "$PSScriptRoot\version.txt"
-$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "1.0.2" }
+$rootDir = Resolve-Path "$PSScriptRoot\.."
+$versionPath = "$rootDir\version.txt"
+$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "1.0.7" }
 
 if ([string]::IsNullOrWhiteSpace($TagName)) {
     $TagName = "v$versionStr"
@@ -57,7 +58,7 @@ $bodyJson = @{
     tag_name         = $TagName
     target_commitish = "main"
     name             = $ReleaseName
-    body             = "## Yanich DeskSound ${TagName} Official Release`n`n**Full Release Assets:**`n- yanich-desksound_${TagName}.exe (Windows Desktop Server GUI)`n- yanich-desksound_${TagName}.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in ${TagName}:**`n- **Auto-Update System**: Added Startup Auto-Update check on launch for Android Client App & Windows Server GUI.`n- **Windows Server GUI**: DWM Immersive Dark Mode integration, Studio Slate Cards (14px radius), Inline Version Badge, dynamic signal peak colors.`n- **Android Receiver Client**: Material 3 Update Dialog, direct in-app auto-installer, fixed bottom copyright footer.`n`nCreated by Vath Sathya."
+    body             = "## Yanich DeskSound ${TagName} Official Release`n`n**Full Release Assets:**`n- yanich-desksound_${TagName}.exe (Windows Desktop Server GUI)`n- yanich-desksound_${TagName}.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in ${TagName}:**`n- **Enterprise Codebase Structure**: Restructured into modular platform directories (`server-windows/`, `server-linux/`, `client-android/`, `scripts/`).`n- **Android High-Performance Lock**: Added `WIFI_MODE_FULL_LOW_LATENCY` & `PARTIAL_WAKE_LOCK` for zero Doze mode background throttling.`n- **Mouse Pointer Hover Fix**: Native Windows Arrow (`IDC_ARROW`) by default with precise Hand (`IDC_HAND`) hover feedback.`n`nCreated by Vath Sathya."
     draft            = $false
     prerelease       = $false
 } | ConvertTo-Json
@@ -91,23 +92,20 @@ function Upload-FileAsset($filePath, $contentType) {
 }
 
 # Upload Binaries
-$workDir = $PSScriptRoot
-if (-not $workDir) { $workDir = Get-Location }
-
 $exeName = "yanich-desksound_$TagName.exe"
 $apkName = "yanich-desksound_$TagName.apk"
 
-$exePath = "$workDir\$exeName"
+$exePath = "$rootDir\$exeName"
 if (-not (Test-Path $exePath)) {
-    if (Test-Path "$workDir\desksound.exe") {
-        Copy-Item "$workDir\desksound.exe" $exePath -Force
+    if (Test-Path "$rootDir\desksound.exe") {
+        Copy-Item "$rootDir\desksound.exe" $exePath -Force
     }
 }
 
-$apkPath = "$workDir\$apkName"
+$apkPath = "$rootDir\$apkName"
 if (-not (Test-Path $apkPath)) {
-    if (Test-Path "$workDir\app-release.apk") {
-        Copy-Item "$workDir\app-release.apk" $apkPath -Force
+    if (Test-Path "$rootDir\app-release.apk") {
+        Copy-Item "$rootDir\app-release.apk" $apkPath -Force
     }
 }
 

@@ -1,5 +1,6 @@
-$versionPath = "$PSScriptRoot\version.txt"
-$headerPath = "$PSScriptRoot\version.h"
+$rootDir = Resolve-Path "$PSScriptRoot\.."
+$versionPath = "$rootDir\version.txt"
+$headerPath = "$rootDir\server-windows\include\version.h"
 
 if (Test-Path $versionPath) {
     $v = (Get-Content $versionPath -Raw).Trim()
@@ -24,5 +25,5 @@ if (Test-Path $versionPath) {
 
 "@
     [System.IO.File]::WriteAllText($headerPath, $hContent.Replace("`r`n", "`n").Replace("`n", "`r`n"))
-    Write-Host "Synced version.h to $v" -ForegroundColor Green
+    Write-Host "Synced version.h to $v at $headerPath" -ForegroundColor Green
 }
