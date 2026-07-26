@@ -26,6 +26,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.net.Uri
 import android.provider.Settings
 import androidx.core.content.FileProvider
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var audioDeviceCallback: android.media.AudioDeviceCallback? = null
+    private var hardwareStateReceiver: BroadcastReceiver? = null
 
     enum class AppTab {
         CONNECTION, MONITOR, INFO
@@ -244,21 +247,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateNetworkAndAudioRouteInfo() {
         try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val activeNetwork = cm.activeNetwork
-            val caps = cm.getNetworkCapabilities(activeNetwork)
-
-            val localIp = getLocalWifiIpAddress() ?: ""
-
-            if (localIp.startsWith("192.168.42.") || localIp.startsWith("192.168.49.") || caps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true) {
-                binding.tvNetworkMode.text = "USB Tethering (~3ms Latency)"
-                binding.tvNetworkMode.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
-            } else if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                binding.tvNetworkMode.text = "Wi-Fi Network ($localIp)"
-                binding.tvNetworkMode.setTextColor(ContextCompat.getColor(this, R.color.accent_cyan))
-            } else {
-                binding.tvNetworkMode.text = "Network Active ($localIp)"
-            }
+            updateClientIpDisplay()
 
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
             val devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
@@ -410,16 +399,46 @@ class MainActivity : AppCompatActivity() {
             val builder = android.net.NetworkRequest.Builder()
             networkCallback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: android.net.Network) {
-                    runOnUiThread { updateNetworkAndAudioRouteInfo() }
+                    runOnUiThread {
+                        updateConnectionModeAvailability()
+                        updateNetworkAndAudioRouteInfo()
+                    }
                 }
                 override fun onLost(network: android.net.Network) {
-                    runOnUiThread { updateNetworkAndAudioRouteInfo() }
+                    runOnUiThread {
+                        updateConnectionModeAvailability()
+                        updateNetworkAndAudioRouteInfo()
+                    }
                 }
                 override fun onCapabilitiesChanged(network: android.net.Network, networkCapabilities: NetworkCapabilities) {
-                    runOnUiThread { updateNetworkAndAudioRouteInfo() }
+                    runOnUiThread {
+                        updateConnectionModeAvailability()
+                        updateNetworkAndAudioRouteInfo()
+                    }
                 }
             }
             cm.registerNetworkCallback(builder.build(), networkCallback!!)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        try {
+            hardwareStateReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    runOnUiThread {
+                        updateConnectionModeAvailability()
+                        updateClientIpDisplay()
+                        updateNetworkAndAudioRouteInfo()
+                    }
+                }
+            }
+            val filter = IntentFilter().apply {
+                addAction(android.net.wifi.WifiManager.WIFI_STATE_CHANGED_ACTION)
+                addAction("android.hardware.usb.action.USB_STATE")
+                addAction(Intent.ACTION_POWER_CONNECTED)
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+            }
+            registerReceiver(hardwareStateReceiver, filter)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -449,6 +468,13 @@ class MainActivity : AppCompatActivity() {
                 cm.unregisterNetworkCallback(it)
             }
             networkCallback = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        try {
+            hardwareStateReceiver?.let { unregisterReceiver(it) }
+            hardwareStateReceiver = null
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -790,6 +816,60 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "USB Mode Activated: Low Latency preset applied (~3ms)", Toast.LENGTH_SHORT).show()
             }
         }
+
+        updateConnectionModeAvailability()
+    }
+
+    private fun updateClientIpDisplay() {
+        try {
+            val localIp = getLocalWifiIpAddress()
+            if (!localIp.isNullOrEmpty()) {
+                binding.tvClientIp.text = localIp
+                binding.tvClientIp.setTextColor(ContextCompat.getColor(this, R.color.accent_cyan))
+            } else {
+                binding.tvClientIp.text = "Not Connected to Wi-Fi"
+                binding.tvClientIp.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun updateConnectionModeAvailability() {
+        try {
+            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+            val isWifiEnabled = wifiManager.isWifiEnabled
+
+            val isAdbEnabled = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) != 0
+            val usbIntent = registerReceiver(null, IntentFilter("android.hardware.usb.action.USB_STATE"))
+            val isUsbConnected = usbIntent?.getBooleanExtra("connected", false) == true
+            val isAdbConnected = usbIntent?.getBooleanExtra("adb", false) == true
+            val isUsbDebugConnected = isUsbConnected && (isAdbConnected || isAdbEnabled)
+
+            binding.btnModeWifi.isEnabled = isWifiEnabled
+            binding.btnModeWifi.alpha = if (isWifiEnabled) 1.0f else 0.4f
+
+            binding.btnModeUsb.isEnabled = isUsbDebugConnected
+            binding.btnModeUsb.alpha = if (isUsbDebugConnected) 1.0f else 0.4f
+
+            if (currentConnectionMode == ConnectionMode.WIFI && !isWifiEnabled) {
+                if (isUsbDebugConnected) {
+                    switchConnectionMode(ConnectionMode.USB, userTriggered = false)
+                } else {
+                    binding.tvModeTip.text = "Wi-Fi is turned off. Turn on Wi-Fi on your device to use Wi-Fi Mode."
+                    binding.tvModeTip.setTextColor(ContextCompat.getColor(this, R.color.status_disconnected))
+                }
+            } else if (currentConnectionMode == ConnectionMode.USB && !isUsbDebugConnected) {
+                if (isWifiEnabled) {
+                    switchConnectionMode(ConnectionMode.WIFI, userTriggered = false)
+                } else {
+                    binding.tvModeTip.text = "USB Debugging is not connected. Connect USB cable and enable USB Debugging."
+                    binding.tvModeTip.setTextColor(ContextCompat.getColor(this, R.color.status_disconnected))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun dpToPx(dp: Float): Int {
@@ -818,6 +898,8 @@ class MainActivity : AppCompatActivity() {
         binding.etServerIp.setText(prefs.getString("ip", defaultIp))
         binding.etServerPort.setText(prefs.getInt("port", 5000).toString())
         switchConnectionMode(savedMode, userTriggered = false)
+        updateClientIpDisplay()
+        updateConnectionModeAvailability()
     }
 
     private fun savePrefs(ip: String, port: Int, mode: ConnectionMode = currentConnectionMode) {

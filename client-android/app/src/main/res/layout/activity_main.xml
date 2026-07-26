@@ -48,19 +48,6 @@
                         android:maxLines="1"
                         android:ellipsize="end"
                         android:includeFontPadding="false" />
-
-                    <TextView
-                        android:id="@+id/tvNetworkMode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Wi-Fi: Studio_Net"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        android:layout_marginTop="2dp"
-                        android:singleLine="true"
-                        android:maxLines="1"
-                        android:ellipsize="end"
-                        android:fontFamily="sans-serif" />
                 </LinearLayout>
 
                 <!-- Status Pill Badge -->
@@ -177,10 +164,10 @@
                         android:id="@+id/btnModeWifi"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
-                        android:layout_height="125dp"
+                        android:layout_height="75dp"
                         android:layout_weight="1"
-                        android:layout_marginEnd="8dp"
-                        android:padding="12dp"
+                        android:layout_marginEnd="4dp"
+                        android:padding="8dp"
                         android:gravity="center"
                         android:text="Wi-Fi Mode"
                         android:textColor="@color/text_primary"
@@ -189,25 +176,25 @@
                         android:textAllCaps="false"
                         app:icon="@drawable/ic_wifi_vector"
                         app:iconGravity="top"
-                        app:iconSize="28dp"
+                        app:iconSize="22dp"
                         app:iconTint="@color/primary"
-                        app:iconPadding="10dp"
+                        app:iconPadding="6dp"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         app:strokeColor="@color/primary"
                         app:strokeWidth="2dp"
                         app:backgroundTint="@color/card"
-                        app:cornerRadius="18dp" />
+                        app:cornerRadius="14dp" />
 
                     <!-- USB Mode Card (Right) -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnModeUsb"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
-                        android:layout_height="125dp"
+                        android:layout_height="75dp"
                         android:layout_weight="1"
-                        android:layout_marginStart="8dp"
-                        android:padding="12dp"
+                        android:layout_marginStart="4dp"
+                        android:padding="8dp"
                         android:gravity="center"
                         android:text="USB Mode"
                         android:textColor="@color/text_secondary"
@@ -216,15 +203,15 @@
                         android:textAllCaps="false"
                         app:icon="@drawable/ic_usb_vector"
                         app:iconGravity="top"
-                        app:iconSize="28dp"
+                        app:iconSize="22dp"
                         app:iconTint="@color/text_secondary"
-                        app:iconPadding="10dp"
+                        app:iconPadding="6dp"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         app:strokeColor="@color/border_muted"
                         app:strokeWidth="1dp"
                         app:backgroundTint="@color/surface"
-                        app:cornerRadius="18dp" />
+                        app:cornerRadius="14dp" />
                 </LinearLayout>
 
                 <!-- Modern Mode Info Helper Card -->
@@ -269,6 +256,44 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
+
+                        <!-- Client IP Address Display -->
+                        <LinearLayout
+                            android:id="@+id/layoutClientIpSection"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:layout_marginBottom="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Client IP Address"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textAllCaps="true"
+                                android:letterSpacing="0.05"
+                                android:layout_marginBottom="8dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="50dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/bg_card_unselected"
+                                android:paddingHorizontal="16dp">
+
+                                <TextView
+                                    android:id="@+id/tvClientIp"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="192.168.1.100"
+                                    android:textColor="@color/accent_cyan"
+                                    android:textSize="15sp"
+                                    android:fontFamily="sans-serif-medium" />
+                            </LinearLayout>
+                        </LinearLayout>
 
                         <TextView
                             android:layout_width="wrap_content"
