@@ -16,6 +16,7 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <timeapi.h>
+#include <functiondiscoverykeys_devpkey.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Ole32.lib")
@@ -35,7 +36,70 @@
 enum ClientChannelMode { CLIENT_MODE_STEREO = 0, CLIENT_MODE_LEFT = 1, CLIENT_MODE_RIGHT = 2 };
 std::atomic<ClientChannelMode> g_client1Channel{CLIENT_MODE_LEFT};
 std::atomic<ClientChannelMode> g_client2Channel{CLIENT_MODE_RIGHT};
-std::atomic<int> g_openDropdown{0}; // 0 = closed, 1 = Client 1 menu open, 2 = Client 2 menu open
+std::atomic<int> g_openDropdown{0}; // 0 = closed, 1 = Client 1 menu open, 2 = Client 2 menu open, 3 = PC Audio Device menu open
+
+template <class T> void SafeRelease(T **ppT) {
+    if (*ppT) {
+        (*ppT)->Release();
+        *ppT = NULL;
+    }
+}
+
+struct AudioDeviceInfo {
+    std::string id;
+    std::string name;
+};
+std::vector<AudioDeviceInfo> g_audioDevices;
+std::atomic<int> g_selectedDeviceIndex{0}; // 0 = Default
+std::mutex g_deviceMutex;
+
+void EnumerateAudioDevices() {
+    std::lock_guard<std::mutex> lock(g_deviceMutex);
+    g_audioDevices.clear();
+    g_audioDevices.push_back({ "", "Default Playback Device" });
+
+    IMMDeviceEnumerator* pEnumerator = NULL;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator))) {
+        IMMDeviceCollection* pCollection = NULL;
+        if (SUCCEEDED(pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pCollection))) {
+            UINT count = 0;
+            pCollection->GetCount(&count);
+            for (UINT i = 0; i < count; ++i) {
+                IMMDevice* pDevice = NULL;
+                if (SUCCEEDED(pCollection->Item(i, &pDevice))) {
+                    LPWSTR pstrID = NULL;
+                    pDevice->GetId(&pstrID);
+
+                    IPropertyStore* pProps = NULL;
+                    std::string friendlyName = "Audio Device";
+                    if (SUCCEEDED(pDevice->OpenPropertyStore(STGM_READ, &pProps))) {
+                        PROPVARIANT varName;
+                        PropVariantInit(&varName);
+                        if (SUCCEEDED(pProps->GetValue(PKEY_Device_FriendlyName, &varName))) {
+                            if (varName.vt == VT_LPWSTR && varName.pwszVal) {
+                                char nameBuf[256] = {0};
+                                WideCharToMultiByte(CP_UTF8, 0, varName.pwszVal, -1, nameBuf, sizeof(nameBuf), NULL, NULL);
+                                friendlyName = nameBuf;
+                            }
+                            PropVariantClear(&varName);
+                        }
+                        SafeRelease(&pProps);
+                    }
+
+                    if (pstrID) {
+                        char idBuf[512] = {0};
+                        WideCharToMultiByte(CP_UTF8, 0, pstrID, -1, idBuf, sizeof(idBuf), NULL, NULL);
+                        g_audioDevices.push_back({ idBuf, friendlyName });
+                        CoTaskMemFree(pstrID);
+                    }
+                    SafeRelease(&pDevice);
+                }
+            }
+            SafeRelease(&pCollection);
+        }
+        SafeRelease(&pEnumerator);
+    }
+}
 
 // Frame Header Channel Mode Tag (0 = STEREO, 1 = LEFT, 2 = RIGHT)
 #define MODE_TAG_STEREO 0
@@ -90,13 +154,6 @@ void CleanupFonts() {
 
 enum DragTarget { DRAG_NONE, DRAG_MASTER, DRAG_GAIN_L, DRAG_GAIN_R };
 DragTarget g_activeDrag = DRAG_NONE;
-
-template <class T> void SafeRelease(T **ppT) {
-    if (*ppT) {
-        (*ppT)->Release();
-        *ppT = NULL;
-    }
-}
 
 bool IsRunOnStartupEnabled() {
     HKEY hKey;
@@ -317,7 +374,26 @@ void WasapiAudioLoop() {
         IAudioCaptureClient *pCaptureClient = NULL;
 
         if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator))) { Sleep(1000); continue; }
-        if (FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice))) { SafeRelease(&pEnumerator); Sleep(1000); continue; }
+
+        int chosenIdx = g_selectedDeviceIndex.load();
+        std::string chosenId = "";
+        {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            if (chosenIdx > 0 && chosenIdx < (int)g_audioDevices.size()) {
+                chosenId = g_audioDevices[chosenIdx].id;
+            }
+        }
+
+        if (chosenId.empty()) {
+            if (FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice))) { SafeRelease(&pEnumerator); Sleep(1000); continue; }
+        } else {
+            wchar_t wId[512];
+            MultiByteToWideChar(CP_UTF8, 0, chosenId.c_str(), -1, wId, 512);
+            if (FAILED(pEnumerator->GetDevice(wId, &pDevice))) {
+                if (FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice))) { SafeRelease(&pEnumerator); Sleep(1000); continue; }
+            }
+        }
+
         if (FAILED(pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&pAudioClient))) { SafeRelease(&pDevice); SafeRelease(&pEnumerator); Sleep(1000); continue; }
 
         {
@@ -346,7 +422,7 @@ void WasapiAudioLoop() {
                         memset(pData, 0, bytesToRead);
                         g_rmsL.store(0.0f);
                         g_rmsR.store(0.0f);
-                    } else if (g_pwfx->wBitsPerSample == 32 && g_pwfx->nChannels == 2) {
+                    } else if (g_pwfx->wBitsPerSample == 32 && g_pwfx->nChannels >= 1) {
                         float masterLinear = g_isMuted.load() ? 0.0f : (g_masterVolume.load() / 100.0f);
                         float gainLLinear  = g_isMutedL.load() ? 0.0f : (g_gainL.load() / 100.0f);
                         float gainRLinear  = g_isMutedR.load() ? 0.0f : (g_gainR.load() / 100.0f);
@@ -355,20 +431,40 @@ void WasapiAudioLoop() {
                         float volR = masterLinear * gainRLinear;
 
                         float* pFloatData = (float*)pData;
+                        UINT32 chCount = g_pwfx->nChannels;
+
+                        UINT32 totalSamples = numFramesAvailable * 2;
+                        if (s_buf1.size() < totalSamples) s_buf1.resize(totalSamples);
+                        if (s_buf2.size() < totalSamples) s_buf2.resize(totalSamples);
+
                         float sumL = 0.0f, sumR = 0.0f;
 
                         for (UINT32 i = 0; i < numFramesAvailable; ++i) {
-                            pFloatData[i * 2 + 0] *= volL;
-                            pFloatData[i * 2 + 1] *= volR;
+                            float sampleL = 0.0f;
+                            float sampleR = 0.0f;
 
-                            if (pFloatData[i * 2 + 0] > 1.0f) pFloatData[i * 2 + 0] = 1.0f;
-                            else if (pFloatData[i * 2 + 0] < -1.0f) pFloatData[i * 2 + 0] = -1.0f;
+                            if (chCount == 1) {
+                                sampleL = pFloatData[i];
+                                sampleR = pFloatData[i];
+                            } else {
+                                sampleL = pFloatData[i * chCount + 0];
+                                sampleR = pFloatData[i * chCount + 1];
+                            }
 
-                            if (pFloatData[i * 2 + 1] > 1.0f) pFloatData[i * 2 + 1] = 1.0f;
-                            else if (pFloatData[i * 2 + 1] < -1.0f) pFloatData[i * 2 + 1] = -1.0f;
+                            sampleL *= volL;
+                            sampleR *= volR;
 
-                            sumL += pFloatData[i * 2 + 0] * pFloatData[i * 2 + 0];
-                            sumR += pFloatData[i * 2 + 1] * pFloatData[i * 2 + 1];
+                            if (sampleL > 1.0f) sampleL = 1.0f; else if (sampleL < -1.0f) sampleL = -1.0f;
+                            if (sampleR > 1.0f) sampleR = 1.0f; else if (sampleR < -1.0f) sampleR = -1.0f;
+
+                            sumL += sampleL * sampleL;
+                            sumR += sampleR * sampleR;
+
+                            s_buf1[i * 2 + 0] = sampleL;
+                            s_buf1[i * 2 + 1] = sampleL;
+
+                            s_buf2[i * 2 + 0] = sampleR;
+                            s_buf2[i * 2 + 1] = sampleR;
                         }
                         g_rmsL.store(sqrtf(sumL / numFramesAvailable));
                         g_rmsR.store(sqrtf(sumR / numFramesAvailable));
@@ -379,12 +475,6 @@ void WasapiAudioLoop() {
                         std::lock_guard<std::mutex> lock(g_clientMutex);
                         size_t clientCount = g_clientSockets.size();
                         if (clientCount > 0 && g_pwfx->wBitsPerSample == 32) {
-                            UINT32 totalSamples = numFramesAvailable * 2;
-                            if (s_buf1.size() < totalSamples) s_buf1.resize(totalSamples);
-                            if (s_buf2.size() < totalSamples) s_buf2.resize(totalSamples);
-
-                            float* pFloatData = (float*)pData;
-
                             // Send Client 1
                             if (clientCount >= 1) {
                                 ClientChannelMode ch1 = g_client1Channel.load();
@@ -393,12 +483,8 @@ void WasapiAudioLoop() {
                                     ok1 = SendAudioPacketWithTag(g_clientSockets[0], MODE_TAG_STEREO, (const char*)pData, bytesToRead);
                                 } else {
                                     uint32_t tag = (ch1 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : MODE_TAG_RIGHT;
-                                    for (UINT32 i = 0; i < numFramesAvailable; ++i) {
-                                        float sample = (ch1 == CLIENT_MODE_LEFT) ? pFloatData[i * 2 + 0] : pFloatData[i * 2 + 1];
-                                        s_buf1[i * 2 + 0] = sample;
-                                        s_buf1[i * 2 + 1] = sample;
-                                    }
-                                    ok1 = SendAudioPacketWithTag(g_clientSockets[0], tag, (const char*)s_buf1.data(), bytesToRead);
+                                    const char* bufPtr = (ch1 == CLIENT_MODE_LEFT) ? (const char*)s_buf1.data() : (const char*)s_buf2.data();
+                                    ok1 = SendAudioPacketWithTag(g_clientSockets[0], tag, bufPtr, numFramesAvailable * 8);
                                 }
 
                                 if (!ok1) {
@@ -420,12 +506,8 @@ void WasapiAudioLoop() {
                                     ok2 = SendAudioPacketWithTag(g_clientSockets[1], MODE_TAG_STEREO, (const char*)pData, bytesToRead);
                                 } else {
                                     uint32_t tag = (ch2 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : MODE_TAG_RIGHT;
-                                    for (UINT32 i = 0; i < numFramesAvailable; ++i) {
-                                        float sample = (ch2 == CLIENT_MODE_LEFT) ? pFloatData[i * 2 + 0] : pFloatData[i * 2 + 1];
-                                        s_buf2[i * 2 + 0] = sample;
-                                        s_buf2[i * 2 + 1] = sample;
-                                    }
-                                    ok2 = SendAudioPacketWithTag(g_clientSockets[1], tag, (const char*)s_buf2.data(), bytesToRead);
+                                    const char* bufPtr = (ch2 == CLIENT_MODE_LEFT) ? (const char*)s_buf1.data() : (const char*)s_buf2.data();
+                                    ok2 = SendAudioPacketWithTag(g_clientSockets[1], tag, bufPtr, numFramesAvailable * 8);
                                 }
 
                                 if (!ok2) {
@@ -488,6 +570,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     int trackW = trackX2 - trackX1;
 
     RECT btnToggleServer = { 380, 72, 480, 102 };
+    RECT btnDeviceDropdown = { 150, 112, 480, 134 };
 
     RECT btnDropdownC1 = { 250, 164, 380, 182 };
     RECT btnKickClient1= { 390, 164, 475, 182 };
@@ -512,9 +595,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         // Handle open dropdown selection first
         int openMenu = g_openDropdown.load();
         if (openMenu == 1) {
-            RECT rOpt1 = { 250, 186, 380, 204 };
-            RECT rOpt2 = { 250, 206, 380, 224 };
-            RECT rOpt3 = { 250, 226, 380, 244 };
+            RECT rOpt1 = { 250, 194, 380, 212 };
+            RECT rOpt2 = { 250, 214, 380, 232 };
+            RECT rOpt3 = { 250, 234, 380, 252 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client1Channel.store(CLIENT_MODE_LEFT);
                 g_openDropdown.store(0);
@@ -533,9 +616,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 2) {
-            RECT rOpt1 = { 250, 208, 380, 226 };
-            RECT rOpt2 = { 250, 228, 380, 246 };
-            RECT rOpt3 = { 250, 248, 380, 266 };
+            RECT rOpt1 = { 250, 216, 380, 234 };
+            RECT rOpt2 = { 250, 234, 380, 252 };
+            RECT rOpt3 = { 250, 252, 380, 270 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client2Channel.store(CLIENT_MODE_LEFT);
                 g_openDropdown.store(0);
@@ -553,6 +636,25 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             }
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
+        } else if (openMenu == 3) {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int itemY = 136;
+            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
+                RECT rOpt = { 145, itemY, 480, itemY + 20 };
+                if (PtInRect(&rOpt, pt)) {
+                    g_selectedDeviceIndex.store((int)k);
+                    g_openDropdown.store(0);
+                    InvalidateRect(hwnd, NULL, FALSE); return;
+                }
+                itemY += 20;
+            }
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+
+        if (PtInRect(&btnDeviceDropdown, pt)) {
+            g_openDropdown.store((openMenu == 3) ? 0 : 3);
+            InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
         if (PtInRect(&btnToggleServer, pt)) {
@@ -735,7 +837,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         // Server Status Card
         HBRUSH cardBrush = CreateSolidBrush(RGB(28, 34, 48));
-        RECT card1 = { 20, 60, rcClient.right - 20, 115 };
+        RECT card1 = { 20, 60, rcClient.right - 20, 142 };
         FillRect(memDC, &card1, cardBrush);
 
         bool isActive = g_serverActive.load();
@@ -744,26 +846,40 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBRUSH oldB = (HBRUSH)SelectObject(memDC, dotBrush);
         HPEN nullPen = CreatePen(PS_NULL, 0, RGB(0,0,0));
         HPEN oldP = (HPEN)SelectObject(memDC, nullPen);
-        Ellipse(memDC, 35, 80, 47, 92);
+        Ellipse(memDC, 35, 76, 47, 88);
         SelectObject(memDC, oldB);
         SelectObject(memDC, oldP);
         DeleteObject(dotBrush);
         DeleteObject(nullPen);
 
-        HFONT hFontBold = CreateFontA(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-        SelectObject(memDC, hFontBold);
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         
         std::string statusText = isActive ? "Server Status: RUNNING (Port 5000)" : "Server Status: STOPPED";
-        TextOutA(memDC, 55, 76, statusText.c_str(), (int)statusText.length());
+        TextOutA(memDC, 55, 72, statusText.c_str(), (int)statusText.length());
 
-        HFONT hFontSub = CreateFontA(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-        SelectObject(memDC, hFontSub);
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
         std::string ipLine = "Local IP: " + g_localIpsStr;
-        TextOutA(memDC, 55, 94, ipLine.c_str(), (int)ipLine.length());
+        TextOutA(memDC, 55, 92, ipLine.c_str(), (int)ipLine.length());
 
-        RECT btnToggleServer = { 380, 72, 480, 102 };
+        // Device Label & Dropdown
+        TextOutA(memDC, 35, 116, "PC Audio Device:", 16);
+        std::string selectedDevName = "Default Playback Device";
+        {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int selIdx = g_selectedDeviceIndex.load();
+            if (selIdx >= 0 && selIdx < (int)g_audioDevices.size()) {
+                selectedDevName = g_audioDevices[selIdx].name;
+            }
+        }
+        if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
+        selectedDevName += "  v";
+
+        RECT btnDeviceDropdown = { 150, 112, 480, 134 };
+        DrawPillButton(memDC, btnDeviceDropdown, selectedDevName.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
+
+        RECT btnToggleServer = { 380, 68, 480, 96 };
         if (isActive) {
             DrawPillButton(memDC, btnToggleServer, "STOP SERVER", RGB(255, 82, 82), RGB(255, 255, 255));
         } else {
@@ -771,25 +887,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         // Active Clients Card
-        RECT card2 = { 20, 130, rcClient.right - 20, 215 };
+        RECT card2 = { 20, 150, rcClient.right - 20, 225 };
         FillRect(memDC, &card2, cardBrush);
 
-        SelectObject(memDC, hFontBold);
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutA(memDC, 35, 142, "Active Clients", 14);
+        TextOutA(memDC, 35, 158, "Active Clients", 14);
 
-        SelectObject(memDC, hFontSub);
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
 
         std::string c1Text = "Client #1: " + g_client1IpStr;
         std::string c2Text = "Client #2: " + g_client2IpStr;
 
-        TextOutA(memDC, 35, 166, c1Text.c_str(), (int)c1Text.length());
-        TextOutA(memDC, 35, 188, c2Text.c_str(), (int)c2Text.length());
+        TextOutA(memDC, 35, 176, c1Text.c_str(), (int)c1Text.length());
+        TextOutA(memDC, 35, 198, c2Text.c_str(), (int)c2Text.length());
 
         if (g_client1IpStr != "None") {
-            RECT btnDropdownC1 = { 250, 164, 380, 182 };
-            RECT btnKickClient1= { 390, 164, 475, 182 };
+            RECT btnDropdownC1 = { 250, 174, 380, 192 };
+            RECT btnKickClient1= { 390, 174, 475, 192 };
 
             ClientChannelMode ch1 = g_client1Channel.load();
             std::string labelC1 = (ch1 == CLIENT_MODE_LEFT) ? "Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? "Right (R)  v" : "Stereo (L+R)  v";
@@ -799,8 +915,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         if (g_client2IpStr != "None") {
-            RECT btnDropdownC2 = { 250, 186, 380, 204 };
-            RECT btnKickClient2= { 390, 186, 475, 204 };
+            RECT btnDropdownC2 = { 250, 196, 380, 214 };
+            RECT btnKickClient2= { 390, 196, 475, 214 };
 
             ClientChannelMode ch2 = g_client2Channel.load();
             std::string labelC2 = (ch2 == CLIENT_MODE_LEFT) ? "Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? "Right (R)  v" : "Stereo (L+R)  v";
@@ -812,32 +928,47 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         // Draw active dropdown popup menu overlay
         int openMenu = g_openDropdown.load();
         if (openMenu == 1 && g_client1IpStr != "None") {
-            RECT rMenuBg = { 248, 184, 382, 246 };
+            RECT rMenuBg = { 248, 192, 382, 254 };
             DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 186, 380, 204 };
-            RECT rOpt2 = { 250, 206, 380, 224 };
-            RECT rOpt3 = { 250, 226, 380, 244 };
+            RECT rOpt1 = { 250, 194, 380, 212 };
+            RECT rOpt2 = { 250, 214, 380, 232 };
+            RECT rOpt3 = { 250, 234, 380, 252 };
             ClientChannelMode ch1 = g_client1Channel.load();
             DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
         } else if (openMenu == 2 && g_client2IpStr != "None") {
-            RECT rMenuBg = { 248, 206, 382, 268 };
+            RECT rMenuBg = { 248, 214, 382, 276 };
             DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 208, 380, 226 };
-            RECT rOpt2 = { 250, 228, 380, 246 };
-            RECT rOpt3 = { 250, 248, 380, 266 };
+            RECT rOpt1 = { 250, 216, 380, 234 };
+            RECT rOpt2 = { 250, 234, 380, 252 };
+            RECT rOpt3 = { 250, 252, 380, 270 };
             ClientChannelMode ch2 = g_client2Channel.load();
             DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+        } else if (openMenu == 3) {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int count = (int)g_audioDevices.size();
+            if (count > 8) count = 8;
+            RECT rMenuBg = { 148, 134, 482, 136 + count * 20 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            int itemY = 136;
+            int selIdx = g_selectedDeviceIndex.load();
+            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
+                RECT rOpt = { 150, itemY, 480, itemY + 18 };
+                std::string devName = g_audioDevices[k].name;
+                if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
+                DrawPillButton(memDC, rOpt, devName.c_str(), (selIdx == (int)k) ? RGB(0, 229, 255) : RGB(34, 42, 60), (selIdx == (int)k) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+                itemY += 20;
+            }
         }
 
         // Stereo Peak Audio Visualizer Meter Card
         RECT card3 = { 20, 230, rcClient.right - 20, 335 };
         FillRect(memDC, &card3, cardBrush);
 
-        SelectObject(memDC, hFontBold);
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutA(memDC, 35, 242, "Live Stereo Audio Visualizer Meter", 34);
 
@@ -848,7 +979,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         FillRect(memDC, &rBarR_Bg, meterBg);
         DeleteObject(meterBg);
 
-        SelectObject(memDC, hFontSub);
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
         TextOutA(memDC, 35, 272, "L:", 2);
         TextOutA(memDC, 35, 302, "R:", 2);
@@ -876,14 +1007,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT card4 = { 20, 350, rcClient.right - 20, 505 };
         FillRect(memDC, &card4, cardBrush);
 
-        SelectObject(memDC, hFontBold);
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         TextOutA(memDC, 35, 360, "Volume & Channel Gain Control", 29);
 
         RECT btnReset = { 430, 356, 480, 376 };
         DrawPillButton(memDC, btnReset, "Reset", RGB(34, 42, 60), RGB(255, 255, 255));
 
-        SelectObject(memDC, hFontSub);
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutA(memDC, 35, 392, "Master Volume:", 14);
         TextOutA(memDC, 35, 430, "Left (L) Volume:", 16);
@@ -954,8 +1085,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         DeleteObject(hFontFooter);
 
         DeleteObject(cardBrush);
-        DeleteObject(hFontBold);
-        DeleteObject(hFontSub);
 
         BitBlt(hdc, 0, 0, rcClient.right, rcClient.bottom, memDC, 0, 0, SRCCOPY);
         SelectObject(memDC, oldBitmap);
@@ -995,6 +1124,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return -1;
 
     FetchLocalIPAddresses();
+    EnumerateAudioDevices();
 
     SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listenSocket == INVALID_SOCKET) {
