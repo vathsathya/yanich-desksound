@@ -870,6 +870,194 @@ void DrawPillButtonW(HDC hdc, RECT rect, const wchar_t* label, COLORREF bgCol = 
     SelectObject(hdc, oldF);
 }
 
+HWND g_hwndAbout = NULL;
+std::atomic<bool> g_isCheckingUpdateInAbout{ false };
+
+LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_CREATE: {
+        BOOL darkMode = TRUE;
+        DwmSetWindowAttribute(hwnd, 20, &darkMode, sizeof(darkMode));
+        DwmSetWindowAttribute(hwnd, 19, &darkMode, sizeof(darkMode));
+        break;
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+
+        HDC memDC = CreateCompatibleDC(hdc);
+        HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
+        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
+
+        HBRUSH bgBrush = CreateSolidBrush(RGB(15, 19, 28));
+        FillRect(memDC, &rc, bgBrush);
+        DeleteObject(bgBrush);
+        SetBkMode(memDC, TRANSPARENT);
+
+        COLORREF cardBg = RGB(23, 29, 43);
+
+        // Header Title
+        SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(255, 255, 255));
+        TextOutW(memDC, 20, 18, L"DeskSound Server", 16);
+
+        RECT rVerBadge = { 260, 18, 435, 40 };
+        DrawPillButtonW(memDC, rVerBadge, Utf8ToWide(APP_VERSION_TAG).c_str(), RGB(28, 36, 52), RGB(0, 229, 255));
+
+        // Card 1: App Purpose (គោលបំណងកម្មវិធី)
+        RECT c1 = { 20, 55, rc.right - 20, 195 };
+        DrawRoundedRect(memDC, c1, cardBg, 14);
+
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(0, 229, 255));
+        TextOutW(memDC, 35, 68, L"គោលបំណងកម្មវិធី (App Purpose):", 29);
+
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(200, 215, 235));
+        TextOutW(memDC, 35, 96, L"DeskSound គឺជាកម្មវិធីបញ្ជូន និងទទួលសំឡេង Real-time", 52);
+        TextOutW(memDC, 35, 118, L"ដែលផ្ដល់នូវគុណភាពសំឡេងខ្ពស់ និង Latency ទាបបំផុត (Low-Latency)។", 65);
+
+        SetTextColor(memDC, RGB(140, 155, 180));
+        TextOutW(memDC, 35, 148, L"High-performance real-time wireless & USB audio streaming server.", 63);
+        TextOutW(memDC, 35, 166, L"Turns your Android smartphones into wireless PC speakers.", 57);
+
+        // Card 2: Developer Info (អ្នកបង្កើត)
+        RECT c2 = { 20, 207, rc.right - 20, 287 };
+        DrawRoundedRect(memDC, c2, cardBg, 14);
+
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(0, 229, 255));
+        TextOutW(memDC, 35, 220, L"អ្នកបង្កើត (Developer Info):", 27);
+
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(255, 255, 255));
+        TextOutW(memDC, 35, 248, L"Vath Sathya (@vathsathya)", 25);
+
+        RECT btnGitHub = { rc.right - 170, 242, rc.right - 35, 270 };
+        DrawPillButtonW(memDC, btnGitHub, L"GitHub Repo", RGB(32, 40, 58), RGB(0, 229, 255));
+
+        // Card 3: Software Update (បច្ចុប្បន្នភាព)
+        RECT c3 = { 20, 299, rc.right - 20, 429 };
+        DrawRoundedRect(memDC, c3, cardBg, 14);
+
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(0, 229, 255));
+        TextOutW(memDC, 35, 312, L"Software Update (បច្ចុប្បន្នភាព):", 33);
+
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(200, 215, 235));
+
+        std::wstring updateStatusText;
+        if (g_isCheckingUpdateInAbout.load()) {
+            updateStatusText = L"Checking GitHub for latest updates...";
+        } else if (g_updateAvailable.load()) {
+            updateStatusText = L"New update available: " + Utf8ToWide(g_latestUpdateTag);
+        } else {
+            updateStatusText = L"You are using the latest version (" + Utf8ToWide(APP_VERSION_TAG) + L")";
+        }
+        TextOutW(memDC, 35, 340, updateStatusText.c_str(), (int)updateStatusText.length());
+
+        RECT btnCheckUpdate = { 35, 372, 220, 410 };
+        RECT btnUpdateNow   = { 235, 372, 420, 410 };
+
+        bool isUpdAvail = g_updateAvailable.load();
+        DrawPillButtonW(memDC, btnCheckUpdate, L"CHECK FOR UPDATES", RGB(32, 40, 58), RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnUpdateNow, isUpdAvail ? L"UPDATE NOW" : L"VIEW RELEASES", isUpdAvail ? RGB(0, 229, 255) : RGB(28, 36, 52), isUpdAvail ? RGB(18, 22, 33) : RGB(160, 175, 200));
+
+        // Bottom Close Button
+        RECT btnCloseDlg = { rc.right - 120, 445, rc.right - 20, 477 };
+        DrawPillButtonW(memDC, btnCloseDlg, L"CLOSE", RGB(40, 50, 72), RGB(255, 255, 255));
+
+        BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
+        SelectObject(memDC, oldBitmap);
+        DeleteObject(memBitmap);
+        DeleteDC(memDC);
+        EndPaint(hwnd, &ps);
+        break;
+    }
+    case WM_LBUTTONDOWN: {
+        int mx = GET_X_LPARAM(lParam);
+        int my = GET_Y_LPARAM(lParam);
+        POINT pt = { mx, my };
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+
+        RECT btnGitHub = { rc.right - 170, 242, rc.right - 35, 270 };
+        if (PtInRect(&btnGitHub, pt)) {
+            ShellExecuteW(NULL, L"open", L"https://github.com/vathsathya/yanich-desksound", NULL, NULL, SW_SHOWNORMAL);
+            break;
+        }
+
+        RECT btnCheckUpdate = { 35, 372, 220, 410 };
+        if (PtInRect(&btnCheckUpdate, pt)) {
+            g_isCheckingUpdateInAbout.store(true);
+            InvalidateRect(hwnd, NULL, FALSE);
+            std::thread([hwnd]() {
+                CheckForUpdatesAsync();
+                Sleep(800);
+                g_isCheckingUpdateInAbout.store(false);
+                if (IsWindow(hwnd)) InvalidateRect(hwnd, NULL, FALSE);
+            }).detach();
+            break;
+        }
+
+        RECT btnUpdateNow = { 235, 372, 420, 410 };
+        if (PtInRect(&btnUpdateNow, pt)) {
+            std::string url = g_updateAvailable.load() ? g_latestUpdateUrl : "https://github.com/vathsathya/yanich-desksound/releases/latest";
+            ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
+            break;
+        }
+
+        RECT btnCloseDlg = { rc.right - 120, 445, rc.right - 20, 477 };
+        if (PtInRect(&btnCloseDlg, pt)) {
+            DestroyWindow(hwnd);
+            break;
+        }
+        break;
+    }
+    case WM_DESTROY: {
+        g_hwndAbout = NULL;
+        break;
+    }
+    default:
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+void ShowAboutDialog(HWND hwndParent) {
+    if (g_hwndAbout && IsWindow(g_hwndAbout)) {
+        SetForegroundWindow(g_hwndAbout);
+        return;
+    }
+
+    HINSTANCE hInst = GetModuleHandle(NULL);
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.style = CS_CLASSDC;
+    wc.lpfnWndProc = AboutWndProc;
+    wc.hInstance = hInst;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = g_hbrClassBg;
+    wc.lpszClassName = L"YanichDeskSoundAboutClass";
+
+    RegisterClassExW(&wc);
+
+    int w = 460, h = 515;
+    RECT rParent;
+    GetWindowRect(hwndParent, &rParent);
+    int x = rParent.left + (rParent.right - rParent.left - w) / 2;
+    int y = rParent.top + (rParent.bottom - rParent.top - h) / 2;
+
+    g_hwndAbout = CreateWindowExW(WS_EX_DLGMODALFRAME, L"YanichDeskSoundAboutClass", L"About Yanich DeskSound Server", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, x, y, w, h, hwndParent, NULL, hInst, NULL);
+    if (g_hwndAbout) {
+        ShowWindow(g_hwndAbout, SW_SHOW);
+        UpdateWindow(g_hwndAbout);
+    }
+}
+
 void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     int trackX1 = 145, trackX2 = 335;
     int trackW = trackX2 - trackX1;
@@ -896,9 +1084,19 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
     if (isClick) {
         POINT pt = { mx, my };
+        RECT rcClient;
+        GetClientRect(hwnd, &rcClient);
+
+        RECT rAboutBtnHeader = { 268, 18, 355, 40 };
+        RECT rFooterText     = { rcClient.right - 150, 510, rcClient.right - 20, 535 };
+
+        if (PtInRect(&rAboutBtnHeader, pt) || PtInRect(&rFooterText, pt)) {
+            ShowAboutDialog(hwnd);
+            return;
+        }
 
         if (g_updateAvailable.load()) {
-            RECT btnUpdate = { 268, 18, 480, 40 };
+            RECT btnUpdate = { 365, 18, 480, 40 };
             if (PtInRect(&btnUpdate, pt)) {
                 ShellExecuteA(NULL, "open", g_latestUpdateUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
                 return;
@@ -1365,7 +1563,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         if (c1Ip == "None" && c2Ip == "None") {
             SetTextColor(memDC, RGB(130, 145, 170));
-            TextOutW(memDC, 35, 180, L"🎧 No active clients connected. Open DeskSound app on phone.", 59);
+            TextOutW(memDC, 35, 180, L"[Idle] No active clients connected. Open DeskSound app on phone.", 65);
         } else {
             SetTextColor(memDC, RGB(255, 255, 255));
             std::wstring c1Text = L"Client #1: " + Utf8ToWide(c1Ip);
@@ -1484,7 +1682,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT rTrackR_Bg = { trackX1, 472, trackX2, 478 };
         DrawRoundedRect(memDC, rTrackR_Bg, RGB(24, 30, 44), 6);
         if (gRNorm > 0.0f) {
-            RECT rTrackR_Fill = { trackX1, 472, trackX1 + (int)(gRNorm * trackW), 478 };
+            RECT rTrackR_Fill = { trackX1, 472, trackX1 + (int)(gRNorm * trackW), 440 };
             DrawRoundedRect(memDC, rTrackR_Fill, RGB(0, 229, 255), 6);
         }
         int kxR = trackX1 + (int)(gRNorm * trackW);
@@ -1515,7 +1713,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontFooter ? g_hFontFooter : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, rcClient.right - 185, 516, L"Created by Vath Sathya", 22);
+        TextOutW(memDC, rcClient.right - 145, 516, L"About Developer", 15);
 
         // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
         int openMenu = g_openDropdown.load();
