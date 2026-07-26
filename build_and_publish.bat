@@ -50,11 +50,13 @@ git push origin v1.0.0 --force
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ============================================================
-    echo   🎉 SUCCESS! Yanich DeskSound v1.0.0 Released!
+    echo   🎉 SUCCESS! Yanich DeskSound v1.0.0 Tagged!
+    echo   - Opening GitHub Release Page in browser...
     echo   - Server GUI: desksound.exe
     echo   - Android Receiver: app-release.apk
     echo   - GitHub Repo: https://github.com/vathsathya/yanich-desksound
     echo ============================================================
+    start https://github.com/vathsathya/yanich-desksound/releases/new?tag=v1.0.0
 ) else (
     echo ⚠️ WARNING: Git push encountered an issue. Check network / git config.
 )
