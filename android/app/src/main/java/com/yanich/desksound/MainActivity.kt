@@ -26,6 +26,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.net.Uri
+import android.provider.Settings
+import androidx.core.content.FileProvider
+import org.json.JSONObject
+import java.io.File
 import java.net.NetworkInterface
 
 class MainActivity : AppCompatActivity() {
@@ -40,7 +45,7 @@ class MainActivity : AppCompatActivity() {
     private var audioDeviceCallback: android.media.AudioDeviceCallback? = null
 
     enum class AppTab {
-        CONNECTION, MONITOR
+        CONNECTION, MONITOR, INFO
     }
 
     enum class ConnectionMode {
@@ -89,6 +94,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnTabConnection.setOnClickListener { switchTab(AppTab.CONNECTION) }
         binding.btnTabMonitor.setOnClickListener { switchTab(AppTab.MONITOR) }
+        binding.btnTabInfo.setOnClickListener { switchTab(AppTab.INFO) }
+
+        binding.btnCheckUpdateInfo.setOnClickListener { checkForUpdates(manualCheck = true) }
+        binding.btnUpdateNow.setOnClickListener { checkForUpdates(manualCheck = true) }
 
         binding.btnModeWifi.setOnClickListener { switchConnectionMode(ConnectionMode.WIFI) }
         binding.btnModeUsb.setOnClickListener { switchConnectionMode(ConnectionMode.USB) }
@@ -148,11 +157,14 @@ class MainActivity : AppCompatActivity() {
         updateNetworkAndAudioRouteInfo()
 
         val ver = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.2"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.3"
         } catch (e: Exception) {
-            "1.0.2"
+            "1.0.3"
         }
-        binding.tvAppFooter.text = "DeskSound Mobile v$ver • Built by @vathsathya"
+        binding.tvInfoAppVersion.text = "Version v$ver • Real-Time Audio Receiver"
+
+        // Silent background update check on app launch
+        checkForUpdates(manualCheck = false)
     }
 
     private fun animateEqualizerSpectrum(rmsLevel: Float) {
@@ -470,12 +482,252 @@ class MainActivity : AppCompatActivity() {
             binding.imgNavMonitor.imageTintList = android.content.res.ColorStateList.valueOf(if (isMon) activeText else inactiveText)
             binding.tvNavMonitor.setTextColor(if (isMon) activeText else inactiveText)
             binding.tvNavMonitor.typeface = if (isMon) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+
+            val isInfo = tab == AppTab.INFO
+            binding.imgNavInfo.imageTintList = android.content.res.ColorStateList.valueOf(if (isInfo) activeText else inactiveText)
+            binding.tvNavInfo.setTextColor(if (isInfo) activeText else inactiveText)
+            binding.tvNavInfo.typeface = if (isInfo) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
         binding.layoutTabConnection.visibility = if (tab == AppTab.CONNECTION) android.view.View.VISIBLE else android.view.View.GONE
         binding.layoutTabMonitor.visibility = if (tab == AppTab.MONITOR) android.view.View.VISIBLE else android.view.View.GONE
+        binding.layoutTabInfo.visibility = if (tab == AppTab.INFO) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
+    private fun checkForUpdates(manualCheck: Boolean = false) {
+        val currentVerStr = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.3"
+        } catch (e: Exception) {
+            "1.0.3"
+        }
+
+        if (manualCheck) {
+            binding.progressBarUpdate.visibility = android.view.View.VISIBLE
+            binding.progressBarUpdate.isIndeterminate = true
+            binding.btnCheckUpdateInfo.isEnabled = false
+            binding.tvUpdateStatus.text = "កំពុងពិនិត្យមើល Version ថ្មីពី GitHub Release..."
+            binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(this, R.color.primary))
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var latestTag = ""
+            var downloadUrl = ""
+            var releaseNotes = ""
+            var isError = false
+            var errorMsg = ""
+
+            try {
+                val url = java.net.URL("https://api.github.com/repos/vathsathya/yanich-desksound/releases/latest")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.setRequestProperty("User-Agent", "DeskSound-Android")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+
+                if (conn.responseCode == 200) {
+                    val stream = conn.inputStream
+                    val jsonStr = stream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(jsonStr)
+
+                    latestTag = json.optString("tag_name", "").trim()
+                    releaseNotes = json.optString("body", "")
+
+                    val assets = json.optJSONArray("assets")
+                    if (assets != null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk", ignoreCase = true)) {
+                                downloadUrl = asset.optString("browser_download_url", "")
+                                break
+                            }
+                        }
+                    }
+                } else {
+                    isError = true
+                    errorMsg = "HTTP ${conn.responseCode}"
+                }
+            } catch (e: Exception) {
+                isError = true
+                errorMsg = e.localizedMessage ?: "Network error"
+            }
+
+            withContext(Dispatchers.Main) {
+                binding.progressBarUpdate.visibility = android.view.View.GONE
+                binding.btnCheckUpdateInfo.isEnabled = true
+
+                if (isError) {
+                    binding.tvUpdateStatus.text = "មិនអាចភ្ជាប់ទៅកាន់ GitHub បានទេ ($errorMsg)"
+                    binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_disconnected))
+                    if (manualCheck) {
+                        Toast.makeText(this@MainActivity, "Update check failed: $errorMsg", Toast.LENGTH_SHORT).show()
+                    }
+                    return@withContext
+                }
+
+                val cleanLatest = latestTag.removePrefix("v").trim()
+                val cleanCurrent = currentVerStr.removePrefix("v").trim()
+
+                if (isNewerVersion(cleanCurrent, cleanLatest)) {
+                    binding.tvUpdateStatus.text = "មាន Version ថ្មី: $latestTag! កំពុងរៀបចំទាញយក..."
+                    binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_connected))
+
+                    binding.tvUpdateTitle.text = "New Update Available ($latestTag)"
+                    binding.tvUpdateDesc.text = if (releaseNotes.isNotBlank()) releaseNotes.lines().firstOrNull { it.isNotBlank() } ?: "New fixes & features available" else "New fixes & features available"
+                    binding.layoutUpdateBanner.visibility = android.view.View.VISIBLE
+
+                    if (manualCheck) {
+                        if (downloadUrl.isNotBlank()) {
+                            downloadAndInstallApk(downloadUrl, latestTag)
+                        } else {
+                            Toast.makeText(this@MainActivity, "APK asset missing in release $latestTag", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else {
+                    binding.tvUpdateStatus.text = "កម្មវិធីរបស់អ្នកស្ថិតនៅ Version ចុងក្រោយបង្អស់ហើយ (v$currentVerStr)"
+                    binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.primary))
+                    binding.layoutUpdateBanner.visibility = android.view.View.GONE
+                    if (manualCheck) {
+                        Toast.makeText(this@MainActivity, "DeskSound is up to date (v$currentVerStr)", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun isNewerVersion(current: String, latest: String): Boolean {
+        try {
+            val cParts = current.split(".").mapNotNull { it.toIntOrNull() }
+            val lParts = latest.split(".").mapNotNull { it.toIntOrNull() }
+            val maxLen = maxOf(cParts.size, lParts.size)
+            for (i in 0 until maxLen) {
+                val c = if (i < cParts.size) cParts[i] else 0
+                val l = if (i < lParts.size) lParts[i] else 0
+                if (l > c) return true
+                if (l < c) return false
+            }
+        } catch (e: Exception) {
+            return latest != current
+        }
+        return false
+    }
+
+    private fun downloadAndInstallApk(downloadUrl: String, versionTag: String) {
+        binding.progressBarUpdate.visibility = android.view.View.VISIBLE
+        binding.progressBarUpdate.isIndeterminate = false
+        binding.progressBarUpdate.progress = 0
+        binding.btnCheckUpdateInfo.isEnabled = false
+        binding.tvUpdateStatus.text = "កំពុងទាញយក $versionTag ពី GitHub Release..."
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var apkFile: File? = null
+            var success = false
+            var errorMsg = ""
+
+            try {
+                var currentUrl = downloadUrl
+                var conn: java.net.HttpURLConnection
+                var redirects = 0
+                while (true) {
+                    val url = java.net.URL(currentUrl)
+                    conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.instanceFollowRedirects = false
+                    conn.setRequestProperty("User-Agent", "DeskSound-Android")
+                    conn.connect()
+
+                    val status = conn.responseCode
+                    if (status == java.net.HttpURLConnection.HTTP_MOVED_TEMP ||
+                        status == java.net.HttpURLConnection.HTTP_MOVED_PERM ||
+                        status == 307 || status == 308) {
+                        currentUrl = conn.getHeaderField("Location")
+                        redirects++
+                        if (redirects > 5) break
+                        continue
+                    }
+                    break
+                }
+
+                val contentLength = conn.contentLength
+                val destDir = externalCacheDir ?: cacheDir
+                val file = File(destDir, "desksound_update_$versionTag.apk")
+                if (file.exists()) file.delete()
+
+                val input = conn.inputStream
+                val output = java.io.FileOutputStream(file)
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                var totalRead = 0L
+
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
+                    totalRead += bytesRead
+                    if (contentLength > 0) {
+                        val progress = ((totalRead * 100) / contentLength).toInt()
+                        withContext(Dispatchers.Main) {
+                            binding.progressBarUpdate.progress = progress
+                            binding.tvUpdateStatus.text = "កំពុងទាញយក $versionTag ($progress%)..."
+                        }
+                    }
+                }
+                output.flush()
+                output.close()
+                input.close()
+
+                apkFile = file
+                success = true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                errorMsg = e.localizedMessage ?: "Download failed"
+            }
+
+            withContext(Dispatchers.Main) {
+                binding.progressBarUpdate.visibility = android.view.View.GONE
+                binding.btnCheckUpdateInfo.isEnabled = true
+
+                if (success && apkFile != null && apkFile.exists()) {
+                    binding.tvUpdateStatus.text = "ទាញយករួចរាល់! កំពុងបើកផ្ទាំង Install..."
+                    promptApkInstallation(apkFile)
+                } else {
+                    binding.tvUpdateStatus.text = "ការទាញយកមានបញ្ហា: $errorMsg"
+                    binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_disconnected))
+                    Toast.makeText(this@MainActivity, "Failed to download update: $errorMsg", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun promptApkInstallation(apkFile: File) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!packageManager.canRequestPackageInstalls()) {
+                    Toast.makeText(this, "សូមអនុញ្ញាត permission ដើម្បេដំឡើង App (Allow Install Unknown Apps)", Toast.LENGTH_LONG).show()
+                    val reqIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(reqIntent)
+                    return
+                }
+            }
+
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apkFile
+            )
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(installIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Install error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun switchConnectionMode(mode: ConnectionMode, userTriggered: Boolean = true) {

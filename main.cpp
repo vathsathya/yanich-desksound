@@ -1343,7 +1343,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         RECT btnToggleServer = { 380, 66, 480, 92 };
         if (isActive) {
-            DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(255, 82, 82), RGB(255, 255, 255));
+            DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(55, 25, 33), RGB(255, 82, 82));
         } else {
             DrawPillButtonW(memDC, btnToggleServer, L"START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
         }
@@ -1362,34 +1362,39 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(255, 255, 255));
 
-        std::wstring c1Text = L"Client #1: " + Utf8ToWide(c1Ip);
-        std::wstring c2Text = L"Client #2: " + Utf8ToWide(c2Ip);
+        if (c1Ip == "None" && c2Ip == "None") {
+            SetTextColor(memDC, RGB(130, 145, 170));
+            TextOutW(memDC, 35, 180, L"🎧 No active clients connected. Open DeskSound app on phone.", 59);
+        } else {
+            SetTextColor(memDC, RGB(255, 255, 255));
+            std::wstring c1Text = L"Client #1: " + Utf8ToWide(c1Ip);
+            std::wstring c2Text = L"Client #2: " + Utf8ToWide(c2Ip);
 
-        TextOutW(memDC, 35, 174, c1Text.c_str(), (int)c1Text.length());
-        TextOutW(memDC, 35, 196, c2Text.c_str(), (int)c2Text.length());
+            TextOutW(memDC, 35, 174, c1Text.c_str(), (int)c1Text.length());
+            TextOutW(memDC, 35, 196, c2Text.c_str(), (int)c2Text.length());
 
-        if (c1Ip != "None") {
-            RECT btnDropdownC1 = { 250, 172, 380, 190 };
-            RECT btnKickClient1= { 390, 172, 475, 190 };
+            if (c1Ip != "None") {
+                RECT btnDropdownC1 = { 250, 172, 380, 190 };
+                RECT btnKickClient1= { 390, 172, 475, 190 };
 
-            ClientChannelMode ch1 = g_client1Channel.load();
-            const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
+                ClientChannelMode ch1 = g_client1Channel.load();
+                const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
 
-            DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(32, 40, 58), RGB(0, 229, 255));
-            DrawPillButtonW(memDC, btnKickClient1, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
-        }
+                DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(32, 40, 58), RGB(0, 229, 255));
+                DrawPillButtonW(memDC, btnKickClient1, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
+            }
 
-        if (c2Ip != "None") {
-            RECT btnDropdownC2 = { 250, 194, 380, 212 };
-            RECT btnKickClient2= { 390, 194, 475, 212 };
+            if (c2Ip != "None") {
+                RECT btnDropdownC2 = { 250, 194, 380, 212 };
+                RECT btnKickClient2= { 390, 194, 475, 212 };
 
-            ClientChannelMode ch2 = g_client2Channel.load();
-            const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
+                ClientChannelMode ch2 = g_client2Channel.load();
+                const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
 
-            DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(32, 40, 58), RGB(0, 229, 255));
-            DrawPillButtonW(memDC, btnKickClient2, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
+                DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(32, 40, 58), RGB(0, 229, 255));
+                DrawPillButtonW(memDC, btnKickClient2, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
+            }
         }
 
         // Stereo Peak Audio Visualizer Meter Card
@@ -1469,7 +1474,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         DrawRoundedRect(memDC, rTrackL_Bg, RGB(24, 30, 44), 6);
         if (gLNorm > 0.0f) {
             RECT rTrackL_Fill = { trackX1, 434, trackX1 + (int)(gLNorm * trackW), 440 };
-            DrawRoundedRect(memDC, rTrackL_Fill, RGB(0, 230, 118), 6);
+            DrawRoundedRect(memDC, rTrackL_Fill, RGB(0, 229, 255), 6);
         }
         int kxL = trackX1 + (int)(gLNorm * trackW);
         RECT rKnobL = { kxL - 7, 430, kxL + 7, 444 };
@@ -1480,7 +1485,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         DrawRoundedRect(memDC, rTrackR_Bg, RGB(24, 30, 44), 6);
         if (gRNorm > 0.0f) {
             RECT rTrackR_Fill = { trackX1, 472, trackX1 + (int)(gRNorm * trackW), 478 };
-            DrawRoundedRect(memDC, rTrackR_Fill, RGB(0, 230, 118), 6);
+            DrawRoundedRect(memDC, rTrackR_Fill, RGB(0, 229, 255), 6);
         }
         int kxR = trackX1 + (int)(gRNorm * trackW);
         RECT rKnobR = { kxR - 7, 468, kxR + 7, 482 };
@@ -1495,15 +1500,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         bool isMutedR = g_isMutedR.load();
 
         DrawPillButtonW(memDC, btnMuteMaster, isMutedM ? L"Muted" : L"Mute", isMutedM ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedM ? RGB(255, 255, 255) : RGB(0, 229, 255));
-        DrawPillButtonW(memDC, btnMuteLeft,   isMutedL ? L"Muted" : L"Mute", isMutedL ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedL ? RGB(255, 255, 255) : RGB(0, 230, 118));
-        DrawPillButtonW(memDC, btnMuteRight,  isMutedR ? L"Muted" : L"Mute", isMutedR ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedR ? RGB(255, 255, 255) : RGB(0, 230, 118));
+        DrawPillButtonW(memDC, btnMuteLeft,   isMutedL ? L"Muted" : L"Mute", isMutedL ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedL ? RGB(255, 255, 255) : RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnMuteRight,  isMutedR ? L"Muted" : L"Mute", isMutedR ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedR ? RGB(255, 255, 255) : RGB(0, 229, 255));
 
         wchar_t strMaster[16], strL[16], strR[16];
         swprintf(strMaster, 16, L"%d%%", (int)g_masterVolume.load());
         swprintf(strL, 16, L"%d%%", (int)g_gainL.load());
         swprintf(strR, 16, L"%d%%", (int)g_gainR.load());
 
-        SetTextColor(memDC, RGB(0, 230, 118));
+        SetTextColor(memDC, RGB(0, 229, 255));
         TextOutW(memDC, rcClient.right - 65, 392, strMaster, (int)wcslen(strMaster));
         TextOutW(memDC, rcClient.right - 65, 430, strL, (int)wcslen(strL));
         TextOutW(memDC, rcClient.right - 65, 468, strR, (int)wcslen(strR));
@@ -1564,9 +1569,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_CTLCOLORSTATIC: {
         HDC hdcStatic = (HDC)wParam;
         SetTextColor(hdcStatic, RGB(160, 175, 200));
-        SetBkColor(hdcStatic, RGB(18, 22, 33));
+        SetBkColor(hdcStatic, RGB(15, 19, 28));
         if (!g_hbrStaticBg) {
-            g_hbrStaticBg = CreateSolidBrush(RGB(18, 22, 33));
+            g_hbrStaticBg = CreateSolidBrush(RGB(15, 19, 28));
         }
         return (INT_PTR)g_hbrStaticBg;
     }
