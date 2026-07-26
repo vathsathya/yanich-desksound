@@ -13,6 +13,7 @@
 #include <atomic>
 #include <thread>
 #include <string>
+#include <sstream>
 #include <cmath>
 #include <algorithm>
 #include <mmdeviceapi.h>
@@ -56,6 +57,24 @@ std::atomic<bool> g_updateAvailable{false};
 std::string g_latestUpdateTag = "";
 std::string g_latestUpdateUrl = "https://github.com/vathsathya/yanich-desksound/releases/latest";
 extern HWND g_hwndMain;
+
+std::atomic<int> g_copiedIpIdx{ -1 };
+
+void CopyTextToClipboard(HWND hwnd, const std::wstring& text) {
+    if (!OpenClipboard(hwnd)) return;
+    EmptyClipboard();
+    size_t bytes = (text.length() + 1) * sizeof(wchar_t);
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (hMem) {
+        void* ptr = GlobalLock(hMem);
+        if (ptr) {
+            memcpy(ptr, text.c_str(), bytes);
+            GlobalUnlock(hMem);
+            SetClipboardData(CF_UNICODETEXT, hMem);
+        }
+    }
+    CloseClipboard();
+}
 
 
 
@@ -1113,6 +1132,54 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             }
         }
 
+        // Check 1-Click IP Capsule click
+        std::string localIpsClick;
+        {
+            std::lock_guard<std::mutex> lock(g_clientMutex);
+            localIpsClick = g_localIpsStr;
+        }
+        std::vector<std::string> ipListClick;
+        {
+            std::stringstream ss(localIpsClick);
+            std::string item;
+            while (std::getline(ss, item, '|')) {
+                size_t p1 = item.find_first_not_of(" \t");
+                size_t p2 = item.find_last_not_of(" \t");
+                if (p1 != std::string::npos && p2 != std::string::npos) {
+                    ipListClick.push_back(item.substr(p1, p2 - p1 + 1));
+                }
+            }
+        }
+
+        HDC hdcTemp = GetDC(hwnd);
+        HFONT oldF = (HFONT)SelectObject(hdcTemp, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        int startX = 115;
+        for (size_t idx = 0; idx < ipListClick.size() && idx < 3; ++idx) {
+            std::wstring wIp = Utf8ToWide(ipListClick[idx]);
+            SIZE sz;
+            GetTextExtentPoint32W(hdcTemp, wIp.c_str(), (int)wIp.length(), &sz);
+            int pillW = sz.cx + 16;
+            RECT rIpPill = { startX, 48, startX + pillW, 68 };
+            if (PtInRect(&rIpPill, pt)) {
+                SelectObject(hdcTemp, oldF);
+                ReleaseDC(hwnd, hdcTemp);
+
+                CopyTextToClipboard(hwnd, wIp);
+                g_copiedIpIdx.store((int)idx);
+                InvalidateRect(hwnd, NULL, FALSE);
+
+                std::thread([hwnd]() {
+                    Sleep(1200);
+                    g_copiedIpIdx.store(-1);
+                    if (IsWindow(hwnd)) InvalidateRect(hwnd, NULL, FALSE);
+                }).detach();
+                return;
+            }
+            startX += pillW + 8;
+        }
+        SelectObject(hdcTemp, oldF);
+        ReleaseDC(hwnd, hdcTemp);
+
         // Handle open dropdown selection first
         int openMenu = g_openDropdown.load();
         if (openMenu == 1) {
@@ -1522,8 +1589,41 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             c2Ip = g_client2IpStr;
         }
 
-        std::wstring ipLine = L"Local IP: " + Utf8ToWide(localIps);
-        TextOutW(memDC, 55, 52, ipLine.c_str(), (int)ipLine.length());
+        TextOutW(memDC, 35, 52, L"Local IP:", 9);
+
+        std::vector<std::string> ipList;
+        {
+            std::stringstream ss(localIps);
+            std::string item;
+            while (std::getline(ss, item, '|')) {
+                size_t p1 = item.find_first_not_of(" \t");
+                size_t p2 = item.find_last_not_of(" \t");
+                if (p1 != std::string::npos && p2 != std::string::npos) {
+                    ipList.push_back(item.substr(p1, p2 - p1 + 1));
+                }
+            }
+        }
+
+        int startX = 115;
+        int activeCopied = g_copiedIpIdx.load();
+
+        for (size_t idx = 0; idx < ipList.size() && idx < 3; ++idx) {
+            std::wstring wIp = Utf8ToWide(ipList[idx]);
+            SIZE sz;
+            GetTextExtentPoint32W(memDC, wIp.c_str(), (int)wIp.length(), &sz);
+
+            int pillW = sz.cx + 16;
+            RECT rIpPill = { startX, 48, startX + pillW, 68 };
+
+            bool isCopied = ((int)idx == activeCopied);
+            COLORREF bgCol   = isCopied ? RGB(0, 230, 118) : RGB(28, 36, 52);
+            COLORREF textCol = isCopied ? RGB(18, 22, 33)  : RGB(0, 229, 255);
+
+            std::wstring label = isCopied ? L"Copied!" : wIp;
+            DrawPillButtonW(memDC, rIpPill, label.c_str(), bgCol, textCol);
+
+            startX += pillW + 8;
+        }
 
         // Device Label & Dropdown
         TextOutW(memDC, 35, 74, L"PC Audio Device:", 16);
