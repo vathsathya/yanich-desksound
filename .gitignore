@@ -3,8 +3,9 @@
 *.apk
 *.zip
 *.jar
+*.tar.gz
 
-# C++ MSVC Build Outputs & Objects
+# C++ MSVC & GCC Build Outputs
 *.obj
 *.res
 *.pch
@@ -14,16 +15,14 @@
 *.exp
 *.lib
 *.log
+*.o
+server-linux/build/
+server-windows/resources/resource.res
 
 # Machine-Specific Local Configuration & Toolchain Overrides
 local.properties
-android/local.properties
+client-android/local.properties
 *.local
-
-# Asset Generation & Utility Helper Scripts
-process_icons.py
-test_receiver.py
-add_defender_exclusion.bat
 
 # Embedded Local JDK & Android SDK Toolchains
 /jdk/
@@ -32,15 +31,15 @@ add_defender_exclusion.bat
 .gradle/
 
 # Android Build Outputs & IDE Folders
-android/.gradle/
-android/build/
-android/app/build/
-android/.idea/
-android/*.iml
-android/app/*.iml
+client-android/.gradle/
+client-android/build/
+client-android/app/build/
+client-android/.idea/
+client-android/*.iml
+client-android/app/*.iml
 build/
 
-# IDE, OS, & Gemini Scratch Folders
+# IDE, OS, & Scratch Files
 .idea/
 .vs/
 .gemini/
@@ -49,3 +48,9 @@ build/
 *.sln
 Thumbs.db
 Desktop.ini
+process_icons.py
+test_receiver.py
+add_defender_exclusion.bat
+redesign_preview.html
+build_and_publish.bat
+build_server.bat
