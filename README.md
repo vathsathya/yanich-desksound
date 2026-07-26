@@ -1,6 +1,6 @@
-# 🔊 Yanich DeskSound `v1.0.8`
+# 🔊 Yanich DeskSound `v1.0.9`
 
-[![Release](https://img.shields.io/badge/Release-v1.0.8-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.8)
+[![Release](https://img.shields.io/badge/Release-v1.0.9-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.9)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-00E5FF.svg?style=for-the-badge&logo=windows)](https://github.com/vathsathya/yanich-desksound)
 [![License](https://img.shields.io/badge/License-MIT-00E5FF.svg?style=for-the-badge)](LICENSE)
 [![Latency](https://img.shields.io/badge/Latency-~3ms%20(USB)-00E376.svg?style=for-the-badge)](https://github.com/vathsathya/yanich-desksound#-%E0%9E%95-connection-modes--performance-benchmarks)
@@ -17,7 +17,8 @@ Developed with passion by **[Vath Sathya](https://github.com/vathsathya)** (`@va
 ## ✨ Highlight Features
 
 ### 🖥️ Windows & Linux Desktop Servers (`server-windows/` & `server-linux/`)
-- **Native Title Bar Integration:** Displays version string directly in the native Windows Title Bar (`Yanich DeskSound Server v1.0.8`).
+- **✨ OPTIMIZE VOLUME (AGC & Loudness Normalization):** Real-time Automatic Gain Control prevents audio clipping/distortion on loud sound bursts while boosting quiet movie speech & game footsteps.
+- **Native Title Bar Integration:** Displays version string directly in the native Windows Title Bar (`Yanich DeskSound Server v1.0.9`).
 - **🛡️ Private Subnet Security Hardening:** Restricts UDP discovery listeners to private local IP subnets to prevent unauthorized eavesdropping.
 - **⚡ 128 KB High-Performance Socket Buffer:** Configured with `TCP_NODELAY` and 128 KB socket buffer for zero packet jitter.
 - **🏷️ Non-Overlapping IP Capsule Badges:** Displays local IP addresses in distinct Cyan Capsule Pill Badges (`[ 10.10.10.126 ]`) with zero text/border collisions.
@@ -57,8 +58,8 @@ graph TD
 
 | Component | Asset File | File Size | Description |
 | :--- | :--- | :--- | :--- |
-| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.0.8.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.8/yanich-desksound_v1.0.8.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
-| 📱 **Android Receiver App** | [`yanich-desksound_v1.0.8.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.8/yanich-desksound_v1.0.8.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
+| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.0.9.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.9/yanich-desksound_v1.0.9.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
+| 📱 **Android Receiver App** | [`yanich-desksound_v1.0.9.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.9/yanich-desksound_v1.0.9.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
 
 ---
 

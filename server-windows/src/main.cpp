@@ -252,6 +252,7 @@ std::atomic<float> g_gainR{100.0f};        // 0% to 100% (Right Volume)
 std::atomic<bool> g_isMuted{false};
 std::atomic<bool> g_isMutedL{false};
 std::atomic<bool> g_isMutedR{false};
+std::atomic<bool> g_optimizeVolume{true};
 
 std::atomic<float> g_rmsL{0.0f};
 std::atomic<float> g_rmsR{0.0f};
@@ -777,6 +778,20 @@ void WasapiAudioLoop() {
                             } else {
                                 rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
                                 rawR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
+                            }
+
+                            if (g_optimizeVolume.load()) {
+                                float peak = std::max(fabsf(rawL), fabsf(rawR));
+                                static float s_agcGain = 1.0f;
+                                float targetGain = 1.0f;
+                                if (peak > 0.85f) {
+                                    targetGain = 0.85f / peak;
+                                } else if (peak > 0.02f && peak < 0.35f) {
+                                    targetGain = 0.35f / peak;
+                                }
+                                s_agcGain += (targetGain - s_agcGain) * 0.10f;
+                                rawL *= s_agcGain;
+                                rawR *= s_agcGain;
                             }
 
                             float sampleL = rawL * volL;
@@ -1328,6 +1343,15 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         RECT btnMuteMaster = { 345, 352, 425, 374 };
         RECT btnMuteLeft   = { 345, 390, 425, 412 };
         RECT btnMuteRight  = { 345, 428, 425, 450 };
+        RECT btnOptVol     = { 300, 320, 420, 340 };
+
+        if (PtInRect(&btnOptVol, pt)) {
+            bool newState = !g_optimizeVolume.load();
+            g_optimizeVolume.store(newState);
+            SetOptimizeVolumeEnabled(newState);
+            InvalidateRect(hwnd, NULL, FALSE);
+            return;
+        }
 
         if (PtInRect(&btnReset, pt)) {
             g_masterVolume.store(100.0f);
@@ -1396,6 +1420,26 @@ void SetMinimizeToTrayEnabled(bool enable) {
     }
 }
 
+bool IsOptimizeVolumeEnabled() {
+    HKEY hKey;
+    DWORD dwValue = 1;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
+        RegQueryValueExW(hKey, L"OptimizeVolume", NULL, &dwType, (LPBYTE)&dwValue, &dwSize);
+        RegCloseKey(hKey);
+    }
+    return dwValue != 0;
+}
+
+void SetOptimizeVolumeEnabled(bool enable) {
+    HKEY hKey;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD dwValue = enable ? 1 : 0;
+        RegSetValueExW(hKey, L"OptimizeVolume", 0, REG_DWORD, (const BYTE*)&dwValue, sizeof(DWORD));
+        RegCloseKey(hKey);
+    }
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE: {
@@ -1419,6 +1463,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         bool minToTrayChecked = IsMinimizeToTrayEnabled();
         g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 200, 491, 140, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
+
+        g_optimizeVolume.store(IsOptimizeVolumeEnabled());
 
         if (g_hFontSub) {
             SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
@@ -1523,8 +1569,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if ((pt.y >= 155 && pt.y <= 198 && pt.x >= 150 && pt.x <= 480) ||
                 (pt.y >= 235 && pt.y <= 278 && pt.x >= 150 && pt.x <= 480)) isHand = true;
 
-            // 8. Test Sound button
+            // 8. Test Sound & Optimize Volume buttons
             if (pt.y >= 275 && pt.y <= 305 && pt.x >= 365 && pt.x <= 480) isHand = true;
+            if (pt.y >= 345 && pt.y <= 372 && pt.x >= 25 && pt.x <= 180) isHand = true;
 
             // 9. Volume sliders area & Mute/Reset buttons
             if (pt.y >= 325 && pt.y <= 465 && pt.x >= 20 && pt.x <= 480) isHand = true;
@@ -1848,6 +1895,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         RECT btnReset = { 430, 320, 480, 340 };
         DrawPillButtonW(memDC, btnReset, L"Reset", RGB(34, 42, 60), RGB(255, 255, 255));
+
+        bool isOptVol = g_optimizeVolume.load();
+        RECT btnOptVol = { 300, 320, 420, 340 };
+        DrawPillButtonW(memDC, btnOptVol, isOptVol ? L"✨ OPTIMIZE: ON" : L"OPTIMIZE: OFF", isOptVol ? RGB(0, 229, 255) : RGB(34, 42, 60), isOptVol ? RGB(18, 22, 33) : RGB(160, 175, 200));
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
