@@ -50,7 +50,7 @@ git push origin v1.0.0 --force
 
 REM 5. Create Official GitHub Release & Upload Binary Assets via API
 echo.
-echo [4/4] Creating GitHub Release & Uploading Binary Assets (exe & apk)...
+echo [4/4] Creating GitHub Release and Uploading Binary Assets...
 powershell -ExecutionPolicy Bypass -File "%~dp0publish_release.ps1"
 
 if %ERRORLEVEL% EQU 0 (

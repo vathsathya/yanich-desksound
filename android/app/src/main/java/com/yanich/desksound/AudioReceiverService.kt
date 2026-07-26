@@ -193,8 +193,12 @@ class AudioReceiverService : Service() {
                 try {
                     Log.d(TAG, "Connecting to server $ip:$port (Attempt ${retryCount + 1})...")
                     val sock = Socket()
-                    sock.connect(InetSocketAddress(ip, port), 5000)
+                    sock.receiveBufferSize = 64 * 1024
+                    sock.sendBufferSize = 64 * 1024
+                    sock.trafficClass = 0x10 // IPTOS_LOWDELAY (Low Latency Network Priority)
                     sock.tcpNoDelay = true
+                    sock.keepAlive = true
+                    sock.connect(InetSocketAddress(ip, port), 5000)
                     socket = sock
 
                     isConnecting = false
@@ -238,6 +242,7 @@ class AudioReceiverService : Service() {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .setFlags(AudioAttributes.FLAG_LOW_LATENCY)
             .build()
 
         val format = AudioFormat.Builder()

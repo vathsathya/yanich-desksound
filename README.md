@@ -59,19 +59,16 @@ graph TD
 
 ---
 
-## 🎧 Smart Auto Sync & Master Controls Guide
+## 🎧 Per-Client Channel & Master Controls Guide
 
-### 1. Automatic Channel Assignment
-- **1 Connected Phone**: Receives **Full Stereo (L + R)**.
-- **2 Connected Phones**: Automatically splits channels:
-  - **Phone #1**: Receives **Left Channel Only (L)**.
-  - **Phone #2**: Receives **Right Channel Only (R)**.
-- **Instant Fallback**: If either phone disconnects, the remaining phone automatically transitions back to **Stereo (L + R)** within **<50ms** without audio clicks or pops.
+### 1. Channel Assignment & Selection
+- **Independent Channel Selector**: Select **`Left`**, **`Right`**, or **`Stereo`** for each client individually right next to its Disconnect button.
+- **Default Assignment**:
+  - **Client #1**: Set to **Left Channel (L)** by default.
+  - **Client #2**: Set to **Right Channel (R)** by default.
 
 ### 2. Windows PC Master Controls (`desksound.exe`)
-- 🔄 **`Auto Sync`**: Default automatic channel management.
-- 🔀 **`Swap L ⇄ R`**: 1-click channel swapper! Swaps Left & Right phone outputs live.
-- 🎧 **`Force Stereo`**: Forces both connected phones to receive full Stereo simultaneously.
+- 🎧 **`Left` / `Right` / `Stereo`**: 1-click channel toggle buttons for each connected client.
 - 🔴 **`Disconnect`**: Disconnect/Kick any client row directly from the server screen.
 
 ### 3. Volume & Channel Gain Controls

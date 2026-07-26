@@ -31,9 +31,11 @@
 #define WM_TRAYICON (WM_USER + 1)
 #define ID_CHK_STARTUP 1020
 
-// Server Channel Mode Enum
-enum ServerChannelMode { MODE_AUTO_SYNC, MODE_SWAP_LR, MODE_FORCE_STEREO };
-std::atomic<ServerChannelMode> g_serverChannelMode{MODE_AUTO_SYNC};
+// Per-Client Channel Mode Enum
+enum ClientChannelMode { CLIENT_MODE_STEREO = 0, CLIENT_MODE_LEFT = 1, CLIENT_MODE_RIGHT = 2 };
+std::atomic<ClientChannelMode> g_client1Channel{CLIENT_MODE_LEFT};
+std::atomic<ClientChannelMode> g_client2Channel{CLIENT_MODE_RIGHT};
+std::atomic<int> g_openDropdown{0}; // 0 = closed, 1 = Client 1 menu open, 2 = Client 2 menu open
 
 // Frame Header Channel Mode Tag (0 = STEREO, 1 = LEFT, 2 = RIGHT)
 #define MODE_TAG_STEREO 0
@@ -66,6 +68,25 @@ std::mutex g_formatMutex;
 HWND g_hwndMain = NULL;
 HWND g_hChkStartup = NULL;
 NOTIFYICONDATA g_nid = {};
+
+HFONT g_hFontTitle = NULL;
+HFONT g_hFontBold  = NULL;
+HFONT g_hFontSub   = NULL;
+HFONT g_hFontBtn   = NULL;
+
+void InitFonts() {
+    if (!g_hFontTitle) g_hFontTitle = CreateFontA(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+    if (!g_hFontBold)  g_hFontBold  = CreateFontA(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+    if (!g_hFontSub)   g_hFontSub   = CreateFontA(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+    if (!g_hFontBtn)   g_hFontBtn   = CreateFontA(12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+}
+
+void CleanupFonts() {
+    if (g_hFontTitle) DeleteObject(g_hFontTitle);
+    if (g_hFontBold)  DeleteObject(g_hFontBold);
+    if (g_hFontSub)   DeleteObject(g_hFontSub);
+    if (g_hFontBtn)   DeleteObject(g_hFontBtn);
+}
 
 enum DragTarget { DRAG_NONE, DRAG_MASTER, DRAG_GAIN_L, DRAG_GAIN_R };
 DragTarget g_activeDrag = DRAG_NONE;
@@ -175,11 +196,15 @@ void KickClient(int index) {
         closesocket(g_clientSockets[index]);
         g_clientSockets.erase(g_clientSockets.begin() + index);
 
+        g_openDropdown.store(0);
         if (index == 0) {
             g_client1IpStr = g_client2IpStr;
+            g_client1Channel.store(g_client2Channel.load());
             g_client2IpStr = "None";
+            g_client2Channel.store(CLIENT_MODE_RIGHT);
         } else {
             g_client2IpStr = "None";
+            g_client2Channel.store(CLIENT_MODE_RIGHT);
         }
     }
     if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
@@ -217,6 +242,8 @@ void AcceptClientsThread(SOCKET listenSocket) {
             }
 
             int optVal = 1;
+            int sndBufSize = 64 * 1024;
+            setsockopt(clientSocket, SOL_SOCKET, SO_SNDBUF, (const char*)&sndBufSize, sizeof(sndBufSize));
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&optVal, sizeof(optVal));
             setsockopt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optVal, sizeof(optVal));
 
@@ -239,8 +266,10 @@ void AcceptClientsThread(SOCKET listenSocket) {
             g_clientSockets.push_back(clientSocket);
             if (g_clientSockets.size() == 1) {
                 g_client1IpStr = clientIp;
+                g_client1Channel.store(CLIENT_MODE_LEFT);
             } else if (g_clientSockets.size() == 2) {
                 g_client2IpStr = clientIp;
+                g_client2Channel.store(CLIENT_MODE_RIGHT);
             }
         }
         if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
@@ -268,6 +297,7 @@ bool SendAudioPacketWithTag(SOCKET sock, uint32_t modeTag, const char* pAudioDat
 
 // WASAPI Audio Loop with 24/7 Infinite Auto-Recovery Loop
 void WasapiAudioLoop() {
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
     CoInitialize(NULL);
     timeBeginPeriod(1);
 
@@ -342,59 +372,61 @@ void WasapiAudioLoop() {
                     if (g_serverActive.load()) {
                         std::lock_guard<std::mutex> lock(g_clientMutex);
                         size_t clientCount = g_clientSockets.size();
-                        ServerChannelMode mode = g_serverChannelMode.load();
-
-                        if (clientCount == 1 || mode == MODE_FORCE_STEREO) {
-                            for (auto it = g_clientSockets.begin(); it != g_clientSockets.end(); ) {
-                                if (!SendAudioPacketWithTag(*it, MODE_TAG_STEREO, (const char*)pData, bytesToRead)) {
-                                    closesocket(*it);
-                                    it = g_clientSockets.erase(it);
-                                    g_client1IpStr = g_clientSockets.size() > 0 ? g_client2IpStr : "None";
-                                    g_client2IpStr = "None";
-                                    if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
-                                } else {
-                                    ++it;
-                                }
-                            }
-                        } else if (clientCount >= 2 && g_pwfx->wBitsPerSample == 32) {
+                        if (clientCount > 0 && g_pwfx->wBitsPerSample == 32) {
                             UINT32 totalSamples = numFramesAvailable * 2;
                             if (s_buf1.size() < totalSamples) s_buf1.resize(totalSamples);
                             if (s_buf2.size() < totalSamples) s_buf2.resize(totalSamples);
 
                             float* pFloatData = (float*)pData;
-                            uint32_t tag1 = MODE_TAG_LEFT;
-                            uint32_t tag2 = MODE_TAG_RIGHT;
 
-                            for (UINT32 i = 0; i < numFramesAvailable; ++i) {
-                                float sL = pFloatData[i * 2 + 0];
-                                float sR = pFloatData[i * 2 + 1];
-
-                                if (mode == MODE_SWAP_LR) {
-                                    tag1 = MODE_TAG_RIGHT;
-                                    tag2 = MODE_TAG_LEFT;
-                                    s_buf1[i * 2 + 0] = sR; s_buf1[i * 2 + 1] = sR;
-                                    s_buf2[i * 2 + 0] = sL; s_buf2[i * 2 + 1] = sL;
+                            // Send Client 1
+                            if (clientCount >= 1) {
+                                ClientChannelMode ch1 = g_client1Channel.load();
+                                bool ok1 = true;
+                                if (ch1 == CLIENT_MODE_STEREO) {
+                                    ok1 = SendAudioPacketWithTag(g_clientSockets[0], MODE_TAG_STEREO, (const char*)pData, bytesToRead);
                                 } else {
-                                    tag1 = MODE_TAG_LEFT;
-                                    tag2 = MODE_TAG_RIGHT;
-                                    s_buf1[i * 2 + 0] = sL; s_buf1[i * 2 + 1] = sL;
-                                    s_buf2[i * 2 + 0] = sR; s_buf2[i * 2 + 1] = sR;
+                                    uint32_t tag = (ch1 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : MODE_TAG_RIGHT;
+                                    for (UINT32 i = 0; i < numFramesAvailable; ++i) {
+                                        float sample = (ch1 == CLIENT_MODE_LEFT) ? pFloatData[i * 2 + 0] : pFloatData[i * 2 + 1];
+                                        s_buf1[i * 2 + 0] = sample;
+                                        s_buf1[i * 2 + 1] = sample;
+                                    }
+                                    ok1 = SendAudioPacketWithTag(g_clientSockets[0], tag, (const char*)s_buf1.data(), bytesToRead);
+                                }
+
+                                if (!ok1) {
+                                    closesocket(g_clientSockets[0]);
+                                    g_clientSockets.erase(g_clientSockets.begin());
+                                    g_client1IpStr = g_client2IpStr;
+                                    g_client1Channel.store(g_client2Channel.load());
+                                    g_client2IpStr = "None";
+                                    g_client2Channel.store(CLIENT_MODE_RIGHT);
+                                    if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
                                 }
                             }
 
-                            if (!SendAudioPacketWithTag(g_clientSockets[0], tag1, (const char*)s_buf1.data(), bytesToRead)) {
-                                closesocket(g_clientSockets[0]);
-                                g_clientSockets.erase(g_clientSockets.begin());
-                                g_client1IpStr = g_client2IpStr;
-                                g_client2IpStr = "None";
-                                if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
-                            }
-
+                            // Send Client 2
                             if (g_clientSockets.size() >= 2) {
-                                if (!SendAudioPacketWithTag(g_clientSockets[1], tag2, (const char*)s_buf2.data(), bytesToRead)) {
+                                ClientChannelMode ch2 = g_client2Channel.load();
+                                bool ok2 = true;
+                                if (ch2 == CLIENT_MODE_STEREO) {
+                                    ok2 = SendAudioPacketWithTag(g_clientSockets[1], MODE_TAG_STEREO, (const char*)pData, bytesToRead);
+                                } else {
+                                    uint32_t tag = (ch2 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : MODE_TAG_RIGHT;
+                                    for (UINT32 i = 0; i < numFramesAvailable; ++i) {
+                                        float sample = (ch2 == CLIENT_MODE_LEFT) ? pFloatData[i * 2 + 0] : pFloatData[i * 2 + 1];
+                                        s_buf2[i * 2 + 0] = sample;
+                                        s_buf2[i * 2 + 1] = sample;
+                                    }
+                                    ok2 = SendAudioPacketWithTag(g_clientSockets[1], tag, (const char*)s_buf2.data(), bytesToRead);
+                                }
+
+                                if (!ok2) {
                                     closesocket(g_clientSockets[1]);
                                     g_clientSockets.erase(g_clientSockets.begin() + 1);
                                     g_client2IpStr = "None";
+                                    g_client2Channel.store(CLIENT_MODE_RIGHT);
                                     if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
                                 }
                             }
@@ -436,15 +468,13 @@ void DrawRoundedRect(HDC hdc, RECT rect, COLORREF color, int radius) {
 void DrawPillButton(HDC hdc, RECT rect, const char* label, COLORREF bgCol = RGB(34, 42, 60), COLORREF textCol = RGB(0, 229, 255)) {
     DrawRoundedRect(hdc, rect, bgCol, 8);
 
-    HFONT hFontBtn = CreateFontA(12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-    HFONT oldF = (HFONT)SelectObject(hdc, hFontBtn);
+    HFONT oldF = (HFONT)SelectObject(hdc, g_hFontBtn ? g_hFontBtn : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
     SetTextColor(hdc, textCol);
     SetBkMode(hdc, TRANSPARENT);
 
     DrawTextA(hdc, label, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     SelectObject(hdc, oldF);
-    DeleteObject(hFontBtn);
 }
 
 void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
@@ -453,12 +483,11 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
     RECT btnToggleServer = { 380, 72, 480, 102 };
 
-    RECT btnModeAuto  = { 220, 140, 300, 160 };
-    RECT btnModeSwap  = { 308, 140, 385, 160 };
-    RECT btnModeStereo= { 393, 140, 480, 160 };
+    RECT btnDropdownC1 = { 250, 164, 380, 182 };
+    RECT btnKickClient1= { 390, 164, 475, 182 };
 
-    RECT btnKickClient1 = { 400, 164, 480, 182 };
-    RECT btnKickClient2 = { 400, 186, 480, 204 };
+    RECT btnDropdownC2 = { 250, 186, 380, 204 };
+    RECT btnKickClient2= { 390, 186, 475, 204 };
 
     RECT btnMasterMinus  = { 345, 388, 385, 410 };
     RECT btnMasterPlus   = { 390, 388, 430, 410 };
@@ -474,6 +503,52 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     if (isClick) {
         POINT pt = { mx, my };
 
+        // Handle open dropdown selection first
+        int openMenu = g_openDropdown.load();
+        if (openMenu == 1) {
+            RECT rOpt1 = { 250, 186, 380, 204 };
+            RECT rOpt2 = { 250, 206, 380, 224 };
+            RECT rOpt3 = { 250, 226, 380, 244 };
+            if (PtInRect(&rOpt1, pt)) {
+                g_client1Channel.store(CLIENT_MODE_LEFT);
+                g_openDropdown.store(0);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            if (PtInRect(&rOpt2, pt)) {
+                g_client1Channel.store(CLIENT_MODE_RIGHT);
+                g_openDropdown.store(0);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            if (PtInRect(&rOpt3, pt)) {
+                g_client1Channel.store(CLIENT_MODE_STEREO);
+                g_openDropdown.store(0);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (openMenu == 2) {
+            RECT rOpt1 = { 250, 208, 380, 226 };
+            RECT rOpt2 = { 250, 228, 380, 246 };
+            RECT rOpt3 = { 250, 248, 380, 266 };
+            if (PtInRect(&rOpt1, pt)) {
+                g_client2Channel.store(CLIENT_MODE_LEFT);
+                g_openDropdown.store(0);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            if (PtInRect(&rOpt2, pt)) {
+                g_client2Channel.store(CLIENT_MODE_RIGHT);
+                g_openDropdown.store(0);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            if (PtInRect(&rOpt3, pt)) {
+                g_client2Channel.store(CLIENT_MODE_STEREO);
+                g_openDropdown.store(0);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+
         if (PtInRect(&btnToggleServer, pt)) {
             bool current = g_serverActive.load();
             g_serverActive.store(!current);
@@ -483,30 +558,33 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
                 g_clientSockets.clear();
                 g_client1IpStr = "None";
                 g_client2IpStr = "None";
+                g_client1Channel.store(CLIENT_MODE_LEFT);
+                g_client2Channel.store(CLIENT_MODE_RIGHT);
+                g_openDropdown.store(0);
             }
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (g_client1IpStr != "None" && PtInRect(&btnKickClient1, pt)) {
-            KickClient(0);
-            return;
-        }
-        if (g_client2IpStr != "None" && PtInRect(&btnKickClient2, pt)) {
-            KickClient(1);
-            return;
+        if (g_client1IpStr != "None") {
+            if (PtInRect(&btnDropdownC1, pt)) {
+                g_openDropdown.store((openMenu == 1) ? 0 : 1);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            if (PtInRect(&btnKickClient1, pt)) {
+                KickClient(0);
+                return;
+            }
         }
 
-        if (PtInRect(&btnModeAuto, pt)) {
-            g_serverChannelMode.store(MODE_AUTO_SYNC);
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-        if (PtInRect(&btnModeSwap, pt)) {
-            g_serverChannelMode.store(MODE_SWAP_LR);
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-        if (PtInRect(&btnModeStereo, pt)) {
-            g_serverChannelMode.store(MODE_FORCE_STEREO);
-            InvalidateRect(hwnd, NULL, FALSE); return;
+        if (g_client2IpStr != "None") {
+            if (PtInRect(&btnDropdownC2, pt)) {
+                g_openDropdown.store((openMenu == 2) ? 0 : 2);
+                InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            if (PtInRect(&btnKickClient2, pt)) {
+                KickClient(1);
+                return;
+            }
         }
 
         RECT btnMuteMaster = { 345, 388, 425, 410 };
@@ -694,49 +772,59 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(memDC, RGB(0, 229, 255));
         TextOutA(memDC, 35, 142, "Active Clients", 14);
 
-        ServerChannelMode curMode = g_serverChannelMode.load();
-        RECT btnModeAuto  = { 220, 140, 300, 160 };
-        RECT btnModeSwap  = { 308, 140, 385, 160 };
-        RECT btnModeStereo= { 393, 140, 480, 160 };
-
-        DrawPillButton(memDC, btnModeAuto,  "Auto Sync",  (curMode == MODE_AUTO_SYNC) ? RGB(0, 229, 255) : RGB(34, 42, 60), (curMode == MODE_AUTO_SYNC) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-        DrawPillButton(memDC, btnModeSwap,  "Swap L ⇄ R", (curMode == MODE_SWAP_LR)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (curMode == MODE_SWAP_LR)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-        DrawPillButton(memDC, btnModeStereo,"Force Stereo",(curMode == MODE_FORCE_STEREO)?RGB(0, 229, 255): RGB(34, 42, 60), (curMode == MODE_FORCE_STEREO)?RGB(18, 22, 33): RGB(255, 255, 255));
-
         SelectObject(memDC, hFontSub);
         SetTextColor(memDC, RGB(255, 255, 255));
 
-        size_t cCount = 0;
-        {
-            std::lock_guard<std::mutex> lock(g_clientMutex);
-            cCount = g_clientSockets.size();
-        }
-
         std::string c1Text = "Client #1: " + g_client1IpStr;
         std::string c2Text = "Client #2: " + g_client2IpStr;
-
-        if (cCount == 1 || curMode == MODE_FORCE_STEREO) {
-            if (g_client1IpStr != "None") c1Text += " [Stereo L+R]";
-            if (g_client2IpStr != "None") c2Text += " [Stereo L+R]";
-        } else if (curMode == MODE_SWAP_LR) {
-            if (g_client1IpStr != "None") c1Text += " [Right Channel R]";
-            if (g_client2IpStr != "None") c2Text += " [Left Channel L]";
-        } else { // AUTO_SYNC
-            if (g_client1IpStr != "None") c1Text += " [Left Channel L]";
-            if (g_client2IpStr != "None") c2Text += " [Right Channel R]";
-        }
 
         TextOutA(memDC, 35, 166, c1Text.c_str(), (int)c1Text.length());
         TextOutA(memDC, 35, 188, c2Text.c_str(), (int)c2Text.length());
 
         if (g_client1IpStr != "None") {
-            RECT btnKickClient1 = { 400, 164, 480, 182 };
+            RECT btnDropdownC1 = { 250, 164, 380, 182 };
+            RECT btnKickClient1= { 390, 164, 475, 182 };
+
+            ClientChannelMode ch1 = g_client1Channel.load();
+            std::string labelC1 = (ch1 == CLIENT_MODE_LEFT) ? "Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? "Right (R)  v" : "Stereo (L+R)  v";
+
+            DrawPillButton(memDC, btnDropdownC1, labelC1.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
             DrawPillButton(memDC, btnKickClient1, "Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
         }
 
         if (g_client2IpStr != "None") {
-            RECT btnKickClient2 = { 400, 186, 480, 204 };
+            RECT btnDropdownC2 = { 250, 186, 380, 204 };
+            RECT btnKickClient2= { 390, 186, 475, 204 };
+
+            ClientChannelMode ch2 = g_client2Channel.load();
+            std::string labelC2 = (ch2 == CLIENT_MODE_LEFT) ? "Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? "Right (R)  v" : "Stereo (L+R)  v";
+
+            DrawPillButton(memDC, btnDropdownC2, labelC2.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
             DrawPillButton(memDC, btnKickClient2, "Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
+        }
+
+        // Draw active dropdown popup menu overlay
+        int openMenu = g_openDropdown.load();
+        if (openMenu == 1 && g_client1IpStr != "None") {
+            RECT rMenuBg = { 248, 184, 382, 246 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            RECT rOpt1 = { 250, 186, 380, 204 };
+            RECT rOpt2 = { 250, 206, 380, 224 };
+            RECT rOpt3 = { 250, 226, 380, 244 };
+            ClientChannelMode ch1 = g_client1Channel.load();
+            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+        } else if (openMenu == 2 && g_client2IpStr != "None") {
+            RECT rMenuBg = { 248, 206, 382, 268 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            RECT rOpt1 = { 250, 208, 380, 226 };
+            RECT rOpt2 = { 250, 228, 380, 246 };
+            RECT rOpt3 = { 250, 248, 380, 266 };
+            ClientChannelMode ch2 = g_client2Channel.load();
+            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
         }
 
         // Stereo Peak Audio Visualizer Meter Card
@@ -895,6 +983,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+    InitFonts();
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return -1;
 
@@ -948,6 +1038,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     g_running = false;
     closesocket(listenSocket);
     WSACleanup();
+    CleanupFonts();
 
     return (int)msg.wParam;
 }
