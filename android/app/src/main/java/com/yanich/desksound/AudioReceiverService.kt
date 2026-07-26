@@ -65,9 +65,15 @@ class AudioReceiverService : Service() {
     enum class OverrideMode { AUTO, FORCE_LEFT, FORCE_RIGHT }
     var overrideMode: OverrideMode = OverrideMode.AUTO
 
+    var currentChannelModeText: String = "🎧 Channel Mode: Stereo (L + R)"
+
     var onStatusChangedListener: ((State, String?) -> Unit)? = null
     var onAudioLevelListener: ((Float) -> Unit)? = null
     var onChannelModeListener: ((String) -> Unit)? = null
+        set(value) {
+            field = value
+            value?.invoke(currentChannelModeText)
+        }
 
     enum class State {
         DISCONNECTED,
@@ -327,6 +333,7 @@ class AudioReceiverService : Service() {
                     2 -> "🎧 Channel Mode: Right Channel Only (R)"
                     else -> "🎧 Channel Mode: Stereo (L + R)"
                 }
+                currentChannelModeText = channelDisplay
                 serviceScope.launch(Dispatchers.Main) {
                     onChannelModeListener?.invoke(channelDisplay)
                 }
