@@ -981,11 +981,36 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         BOOL darkMode = TRUE;
         DwmSetWindowAttribute(hwnd, 20, &darkMode, sizeof(darkMode));
         DwmSetWindowAttribute(hwnd, 19, &darkMode, sizeof(darkMode));
+
+        bool startupChecked = IsRunOnStartupEnabled();
+        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 35, 418, 185, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
+
+        bool minToTrayChecked = IsMinimizeToTrayEnabled();
+        g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 235, 418, 185, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
+
+        if (g_hFontSub) {
+            SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
+            SendMessage(g_hChkMinToTray, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
+        }
+        SendMessage(g_hChkStartup, BM_SETCHECK, startupChecked ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessage(g_hChkMinToTray, BM_SETCHECK, minToTrayChecked ? BST_CHECKED : BST_UNCHECKED, 0);
+        break;
+    }
+    case WM_COMMAND: {
+        int wmId = LOWORD(wParam);
+        if (wmId == ID_CHK_STARTUP) {
+            LRESULT chkState = SendMessage(g_hChkStartup, BM_GETCHECK, 0, 0);
+            SetRunOnStartup(chkState == BST_CHECKED);
+        } else if (wmId == ID_CHK_MIN_TO_TRAY) {
+            LRESULT chkState = SendMessage(g_hChkMinToTray, BM_GETCHECK, 0, 0);
+            SetMinimizeToTrayEnabled(chkState == BST_CHECKED);
+        }
         break;
     }
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
+
         RECT rc;
         GetClientRect(hwnd, &rc);
 
@@ -993,66 +1018,66 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
         HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
-        HBRUSH bgBrush = CreateSolidBrush(RGB(15, 19, 28));
+        HBRUSH bgBrush = CreateSolidBrush(RGB(13, 17, 26));
         FillRect(memDC, &rc, bgBrush);
         DeleteObject(bgBrush);
         SetBkMode(memDC, TRANSPARENT);
 
-        COLORREF cardBg = RGB(23, 29, 43);
+        COLORREF cardBg = RGB(21, 27, 39);
 
         // Header Title
         SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 20, 18, L"DeskSound Server", 16);
+        TextOutW(memDC, 20, 16, L"DeskSound Server", 16);
 
-        RECT rVerBadge = { 270, 18, 445, 40 };
+        RECT rVerBadge = { 270, 16, 445, 38 };
         DrawPillButtonW(memDC, rVerBadge, Utf8ToWide(APP_VERSION_TAG).c_str(), RGB(28, 36, 52), RGB(0, 229, 255));
 
         // Card 1: App Purpose
-        RECT c1 = { 20, 55, rc.right - 20, 205 };
+        RECT c1 = { 20, 50, rc.right - 20, 180 };
         DrawRoundedRect(memDC, c1, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         std::wstring strPurposeTitle = L"App Purpose:";
-        TextOutW(memDC, 35, 68, strPurposeTitle.c_str(), (int)strPurposeTitle.length());
+        TextOutW(memDC, 35, 62, strPurposeTitle.c_str(), (int)strPurposeTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
-        RECT rP1 = { 35, 94, rc.right - 35, 142 };
+        RECT rP1 = { 35, 86, rc.right - 35, 128 };
         std::wstring strP1 = L"DeskSound is a high-performance, real-time wireless & USB audio receiver that streams low-latency PC audio to Android devices.";
         DrawTextW(memDC, strP1.c_str(), -1, &rP1, DT_LEFT | DT_WORDBREAK);
 
         SetTextColor(memDC, RGB(140, 155, 180));
-        RECT rP2 = { 35, 145, rc.right - 35, 192 };
+        RECT rP2 = { 35, 132, rc.right - 35, 172 };
         std::wstring strP2 = L"Ultra-low latency audio (~3ms USB / ~15ms 5GHz Wi-Fi). Turns your Android smartphones into stereo speakers for your PC.";
         DrawTextW(memDC, strP2.c_str(), -1, &rP2, DT_LEFT | DT_WORDBREAK);
 
         // Card 2: Developer Info
-        RECT c2 = { 20, 217, rc.right - 20, 297 };
+        RECT c2 = { 20, 192, rc.right - 20, 262 };
         DrawRoundedRect(memDC, c2, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         std::wstring strDevTitle = L"Developer Info:";
-        TextOutW(memDC, 35, 230, strDevTitle.c_str(), (int)strDevTitle.length());
+        TextOutW(memDC, 35, 204, strDevTitle.c_str(), (int)strDevTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         std::wstring strDevName = L"Vath Sathya (@vathsathya)";
-        TextOutW(memDC, 35, 258, strDevName.c_str(), (int)strDevName.length());
+        TextOutW(memDC, 35, 228, strDevName.c_str(), (int)strDevName.length());
 
-        RECT btnGitHub = { rc.right - 170, 252, rc.right - 35, 280 };
+        RECT btnGitHub = { rc.right - 165, 222, rc.right - 35, 250 };
         DrawPillButtonW(memDC, btnGitHub, L"GitHub Repo", RGB(32, 40, 58), RGB(0, 229, 255));
 
         // Card 3: Software Update
-        RECT c3 = { 20, 309, rc.right - 20, 439 };
+        RECT c3 = { 20, 274, rc.right - 20, 374 };
         DrawRoundedRect(memDC, c3, cardBg, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         std::wstring strUpdTitle = L"Software Update:";
-        TextOutW(memDC, 35, 322, strUpdTitle.c_str(), (int)strUpdTitle.length());
+        TextOutW(memDC, 35, 286, strUpdTitle.c_str(), (int)strUpdTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
@@ -1065,18 +1090,27 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         } else {
             updateStatusText = L"You are using the latest version (" + Utf8ToWide(APP_VERSION_TAG) + L")";
         }
-        TextOutW(memDC, 35, 350, updateStatusText.c_str(), (int)updateStatusText.length());
+        TextOutW(memDC, 35, 308, updateStatusText.c_str(), (int)updateStatusText.length());
 
-        RECT btnCheckUpdate = { 35, 382, 220, 420 };
-        RECT btnUpdateNow   = { 235, 382, 420, 420 };
+        RECT btnCheckUpdate = { 35, 332, 220, 362 };
+        RECT btnUpdateNow   = { 235, 332, 420, 362 };
 
         bool isUpdAvail = g_updateAvailable.load();
         DrawPillButtonW(memDC, btnCheckUpdate, L"CHECK FOR UPDATES", RGB(32, 40, 58), RGB(0, 229, 255));
         DrawPillButtonW(memDC, btnUpdateNow, isUpdAvail ? L"UPDATE NOW" : L"VIEW RELEASES", isUpdAvail ? RGB(0, 229, 255) : RGB(28, 36, 52), isUpdAvail ? RGB(18, 22, 33) : RGB(160, 175, 200));
 
+        // Card 4: System Settings
+        RECT c4 = { 20, 386, rc.right - 20, 446 };
+        DrawRoundedRect(memDC, c4, cardBg, 14);
+
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(0, 229, 255));
+        std::wstring strSetTitle = L"⚙️ System Settings:";
+        TextOutW(memDC, 35, 396, strSetTitle.c_str(), (int)strSetTitle.length());
+
         // Bottom Action Buttons
-        RECT btnViewLogs = { 35, 452, 175, 484 };
-        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 35, 484 };
+        RECT btnViewLogs = { 35, 460, 175, 492 };
+        RECT btnCloseDlg = { rc.right - 130, 460, rc.right - 35, 492 };
         DrawPillButtonW(memDC, btnViewLogs, L"📋 VIEW LOGS", RGB(32, 40, 58), RGB(0, 229, 255));
         DrawPillButtonW(memDC, btnCloseDlg, L"CLOSE", RGB(40, 50, 72), RGB(255, 255, 255));
 
@@ -1094,13 +1128,13 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        RECT btnGitHub = { rc.right - 170, 252, rc.right - 35, 280 };
+        RECT btnGitHub = { rc.right - 165, 222, rc.right - 35, 250 };
         if (PtInRect(&btnGitHub, pt)) {
             ShellExecuteW(NULL, L"open", L"https://github.com/vathsathya/yanich-desksound", NULL, NULL, SW_SHOWNORMAL);
             break;
         }
 
-        RECT btnCheckUpdate = { 35, 382, 220, 420 };
+        RECT btnCheckUpdate = { 35, 332, 220, 362 };
         if (PtInRect(&btnCheckUpdate, pt)) {
             g_isCheckingUpdateInAbout.store(true);
             InvalidateRect(hwnd, NULL, FALSE);
@@ -1113,20 +1147,20 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
         }
 
-        RECT btnUpdateNow = { 235, 382, 420, 420 };
+        RECT btnUpdateNow = { 235, 332, 420, 362 };
         if (PtInRect(&btnUpdateNow, pt)) {
             std::string url = g_updateAvailable.load() ? g_latestUpdateUrl : "https://github.com/vathsathya/yanich-desksound/releases/latest";
             ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
             break;
         }
 
-        RECT btnViewLogs = { 35, 452, 175, 484 };
+        RECT btnViewLogs = { 35, 460, 175, 492 };
         if (PtInRect(&btnViewLogs, pt)) {
             ShowLogDialog(hwnd);
             break;
         }
 
-        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 35, 484 };
+        RECT btnCloseDlg = { rc.right - 130, 460, rc.right - 35, 492 };
         if (PtInRect(&btnCloseDlg, pt)) {
             DestroyWindow(hwnd);
             break;
@@ -1134,6 +1168,8 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         break;
     }
     case WM_DESTROY: {
+        g_hChkStartup = NULL;
+        g_hChkMinToTray = NULL;
         g_hwndAbout = NULL;
         break;
     }
@@ -1161,7 +1197,7 @@ void ShowAboutDialog(HWND hwndParent) {
 
     RegisterClassExW(&wc);
 
-    int w = 470, h = 530;
+    int w = 470, h = 540;
     RECT rParent; GetWindowRect(hwndParent, &rParent);
     int x = rParent.left + (rParent.right - rParent.left - w) / 2;
     int y = rParent.top + (rParent.bottom - rParent.top - h) / 2;
@@ -1645,20 +1681,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         lstrcpyW(g_nid.szTip, L"Yanich DeskSound Server");
         Shell_NotifyIconW(NIM_ADD, &g_nid);
 
-        bool startupChecked = IsRunOnStartupEnabled();
-        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 488, 165, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
-
-        bool minToTrayChecked = IsMinimizeToTrayEnabled();
-        g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 190, 488, 125, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
-
         g_optimizeVolume.store(IsOptimizeVolumeEnabled());
-
-        if (g_hFontSub) {
-            SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
-            SendMessage(g_hChkMinToTray, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
-        }
-        SendMessage(g_hChkStartup, BM_SETCHECK, startupChecked ? BST_CHECKED : BST_UNCHECKED, 0);
-        SendMessage(g_hChkMinToTray, BM_SETCHECK, minToTrayChecked ? BST_CHECKED : BST_UNCHECKED, 0);
 
         CheckForUpdatesAsync();
         break;
@@ -1875,7 +1898,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rcClient.right, rcClient.bottom);
         HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
-        HBRUSH bgBrush = CreateSolidBrush(RGB(15, 19, 28));
+        COLORREF windowBgColor = RGB(13, 17, 26);
+        HBRUSH bgBrush = CreateSolidBrush(windowBgColor);
         FillRect(memDC, &rcClient, bgBrush);
         DeleteObject(bgBrush);
 
@@ -1887,8 +1911,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), RGB(0, 229, 255), RGB(18, 22, 33));
         }
 
-        COLORREF cardBgColor = RGB(23, 29, 43);
-        COLORREF cardBorderColor = RGB(38, 48, 72);
+        COLORREF cardBgColor = RGB(21, 27, 39);
+        COLORREF cardBorderColor = RGB(34, 44, 61);
 
         // Server Status Card
         RECT card1 = { 16, 14, rcClient.right - 16, 106 };
@@ -1909,7 +1933,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
 
-        std::wstring statusText = isActive ? L"Status: RUNNING (5000)" : L"Status: STOPPED";
+        std::wstring statusText = isActive ? L"SERVER STATUS: RUNNING (5000)" : L"SERVER STATUS: STOPPED";
         TextOutW(memDC, 48, 24, statusText.c_str(), (int)statusText.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -1987,7 +2011,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring card2Title = L"📱 Active Connected Clients";
+        std::wstring card2Title = L"CONNECTED CLIENTS";
         TextOutW(memDC, 28, 122, card2Title.c_str(), (int)card2Title.length());
 
         if (g_clientSockets.size() >= 2) {
@@ -2049,7 +2073,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        std::wstring card3Title = L"📊 Live Stereo Audio Visualizer Meter";
+        std::wstring card3Title = L"LIVE AUDIO VISUALIZER";
         TextOutW(memDC, 28, 208, card3Title.c_str(), (int)card3Title.length());
 
         RECT btnTestSound = { rcClient.right - 95, 206, rcClient.right - 28, 226 };
@@ -2068,22 +2092,31 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         float rmsL = g_rmsL_smooth.load();
         float rmsR = g_rmsR_smooth.load();
-        int maxBarW = (rcClient.right - 28) - 58;
-        int barW_L = (int)(rmsL * 3.0f * maxBarW);
-        int barW_R = (int)(rmsR * 3.0f * maxBarW);
-        if (barW_L > maxBarW) barW_L = maxBarW;
-        if (barW_R > maxBarW) barW_R = maxBarW;
 
-        if (barW_L > 0) {
-            RECT rBarL = { 58, 233, 58 + barW_L, 249 };
-            COLORREF colorL = (rmsL > 0.75f) ? RGB(255, 82, 82) : RGB(0, 229, 255);
-            DrawRoundedRect(memDC, rBarL, colorL, 6);
-        }
-        if (barW_R > 0) {
-            RECT rBarR = { 58, 257, 58 + barW_R, 273 };
-            COLORREF colorR = (rmsR > 0.75f) ? RGB(255, 82, 82) : RGB(0, 229, 255);
-            DrawRoundedRect(memDC, rBarR, colorR, 6);
-        }
+        auto DrawLedBar = [&](int startX, int startY, int width, float level) {
+            int numSegments = 32;
+            int gap = 2;
+            int segWidth = (width - (numSegments - 1) * gap) / numSegments;
+            int activeSegs = (int)(level * 3.0f * numSegments);
+            if (activeSegs > numSegments) activeSegs = numSegments;
+
+            for (int i = 0; i < numSegments; ++i) {
+                int segX1 = startX + i * (segWidth + gap);
+                RECT rSeg = { segX1, startY, segX1 + segWidth, startY + 16 };
+                COLORREF segColor;
+                if (i < activeSegs) {
+                    if (i < (int)(numSegments * 0.65f)) segColor = RGB(0, 229, 255);
+                    else if (i < (int)(numSegments * 0.85f)) segColor = RGB(0, 230, 118);
+                    else segColor = RGB(255, 82, 82);
+                } else {
+                    segColor = RGB(22, 28, 40);
+                }
+                DrawRoundedRect(memDC, rSeg, segColor, 3);
+            }
+        };
+
+        DrawLedBar(58, 233, (rcClient.right - 28) - 58, rmsL);
+        DrawLedBar(58, 257, (rcClient.right - 28) - 58, rmsR);
 
         // Volume & Channel Gain Control Card
         RECT card4 = { 16, 298, rcClient.right - 16, 454 };
@@ -2091,7 +2124,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring card4Title = L"🎛️ Volume & Channel Gain Control";
+        std::wstring card4Title = L"VOLUME & CHANNEL GAIN";
         TextOutW(memDC, 28, 306, card4Title.c_str(), (int)card4Title.length());
 
         RECT btnReset = { rcClient.right - 70, 304, rcClient.right - 28, 324 };
