@@ -1497,36 +1497,44 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             bool isHand = false;
 
-            // Footer About link
+            // 1. Footer About Developer link
             RECT rFooterText = { rcClient.right - 150, 490, rcClient.right - 20, 514 };
             if (PtInRect(&rFooterText, pt)) isHand = true;
 
-            // IP Capsules
-            if (pt.y >= 50 && pt.y <= 70 && pt.x >= 98 && pt.x <= 480) isHand = true;
+            // 2. Footer Checkboxes (Startup & Minimize to Tray)
+            if (pt.y >= 488 && pt.y <= 515 && pt.x >= 18 && pt.x <= 350) isHand = true;
 
-            // Server Stop/Start button
+            // 3. IP Capsule Badges (y: 48-72, x: 95-480)
+            if (pt.y >= 48 && pt.y <= 72 && pt.x >= 95 && pt.x <= 480) isHand = true;
+
+            // 4. Server Stop/Start Toggle button
             RECT btnToggleServer = { 380, 26, 480, 52 };
             if (PtInRect(&btnToggleServer, pt)) isHand = true;
 
-            // Audio Device Dropdown
+            // 5. Audio Device Dropdown
             RECT btnDeviceDropdown = { 145, 78, 480, 100 };
             if (PtInRect(&btnDeviceDropdown, pt)) isHand = true;
 
-            // Swap L/R button
+            // 6. Swap L/R button
             RECT btnSwapLR = { 375, 126, 475, 144 };
             if (PtInRect(&btnSwapLR, pt)) isHand = true;
 
-            // Test Sound button
-            RECT btnTestSound = { 370, 210, 475, 232 };
-            if (PtInRect(&btnTestSound, pt)) isHand = true;
+            // 7. Client Channel Mode Selection Buttons
+            if ((pt.y >= 155 && pt.y <= 198 && pt.x >= 150 && pt.x <= 480) ||
+                (pt.y >= 235 && pt.y <= 278 && pt.x >= 150 && pt.x <= 480)) isHand = true;
 
-            // Volume sliders area & mute/reset buttons
-            if (pt.y >= 319 && pt.y <= 478) isHand = true;
+            // 8. Test Sound button
+            if (pt.y >= 275 && pt.y <= 305 && pt.x >= 365 && pt.x <= 480) isHand = true;
+
+            // 9. Volume sliders area & Mute/Reset buttons
+            if (pt.y >= 325 && pt.y <= 465 && pt.x >= 20 && pt.x <= 480) isHand = true;
 
             if (isHand) {
                 SetCursor(LoadCursor(NULL, IDC_HAND));
-                return TRUE;
+            } else {
+                SetCursor(LoadCursor(NULL, IDC_ARROW));
             }
+            return TRUE;
         }
         break;
     }
