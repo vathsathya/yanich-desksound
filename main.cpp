@@ -56,6 +56,8 @@ std::string g_latestUpdateTag = "";
 std::string g_latestUpdateUrl = "https://github.com/vathsathya/yanich-desksound/releases/latest";
 extern HWND g_hwndMain;
 
+
+
 bool IsVersionNewer(const std::string& latestTag, const std::string& currentVersion) {
     int lMajor = 0, lMinor = 0, lPatch = 0;
     int cMajor = 0, cMinor = 0, cPatch = 0;
@@ -259,11 +261,11 @@ HBRUSH g_hbrClassBg  = NULL;
 HBRUSH g_hbrStaticBg = NULL;
 
 void InitFonts() {
-    if (!g_hFontTitle)  g_hFontTitle  = CreateFontW(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    if (!g_hFontBold)   g_hFontBold   = CreateFontW(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    if (!g_hFontSub)    g_hFontSub    = CreateFontW(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    if (!g_hFontBtn)    g_hFontBtn    = CreateFontW(12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    if (!g_hFontFooter) g_hFontFooter = CreateFontW(14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontTitle)  g_hFontTitle  = CreateFontW(-20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
+    if (!g_hFontBold)   g_hFontBold   = CreateFontW(-15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
+    if (!g_hFontSub)    g_hFontSub    = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
+    if (!g_hFontBtn)    g_hFontBtn    = CreateFontW(-12, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
+    if (!g_hFontFooter) g_hFontFooter = CreateFontW(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Leelawadee UI");
 }
 
 void CleanupFonts() {
@@ -1848,6 +1850,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     WNDCLASSEXW wc = { sizeof(WNDCLASSEXW), CS_CLASSDC, WndProc, 0L, 0L, hInstance, LoadIcon(hInstance, MAKEINTRESOURCE(101)), LoadCursor(NULL, IDC_ARROW), g_hbrClassBg, NULL, L"YanichDeskSoundGUIClass", NULL };
     RegisterClassExW(&wc);
+
+    InitFonts();
 
     std::wstring winTitle = L"Yanich DeskSound Server " + Utf8ToWide(APP_VERSION_TAG);
     HWND hwnd = CreateWindowExW(0, L"YanichDeskSoundGUIClass", winTitle.c_str(), WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 554, NULL, NULL, hInstance, NULL);
