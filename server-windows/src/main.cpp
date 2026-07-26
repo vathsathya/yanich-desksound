@@ -354,6 +354,7 @@ void SaveServerConfig() {
     WritePrivateProfileStringA("Audio", "Muted", g_isMuted.load() ? "1" : "0", ini.c_str());
     WritePrivateProfileStringA("Audio", "MutedL", g_isMutedL.load() ? "1" : "0", ini.c_str());
     WritePrivateProfileStringA("Audio", "MutedR", g_isMutedR.load() ? "1" : "0", ini.c_str());
+    WritePrivateProfileStringA("Audio", "OptimizeVolume", g_optimizeVolume.load() ? "1" : "0", ini.c_str());
     WritePrivateProfileStringA("Audio", "SelectedDeviceIndex", std::to_string(g_selectedDeviceIndex.load()).c_str(), ini.c_str());
 }
 
@@ -365,6 +366,7 @@ void LoadServerConfig() {
     int muted     = GetPrivateProfileIntA("Audio", "Muted", 0, ini.c_str());
     int mutedL    = GetPrivateProfileIntA("Audio", "MutedL", 0, ini.c_str());
     int mutedR    = GetPrivateProfileIntA("Audio", "MutedR", 0, ini.c_str());
+    int optVol    = GetPrivateProfileIntA("Audio", "OptimizeVolume", IsOptimizeVolumeEnabled() ? 1 : 0, ini.c_str());
     int devIdx    = GetPrivateProfileIntA("Audio", "SelectedDeviceIndex", 0, ini.c_str());
 
     g_masterVolume.store((float)masterVol);
@@ -373,6 +375,7 @@ void LoadServerConfig() {
     g_isMuted.store(muted == 1);
     g_isMutedL.store(mutedL == 1);
     g_isMutedR.store(mutedR == 1);
+    g_optimizeVolume.store(optVol == 1);
     g_selectedDeviceIndex.store(devIdx);
 }
 
@@ -763,44 +766,75 @@ void WasapiAudioLoop() {
                         float sumL = 0.0f, sumR = 0.0f;
                         const BYTE* pByteData = (const BYTE*)pData;
 
+                        float frameMaxPeak = 0.0f;
+                        static std::vector<float> s_rawLBuf;
+                        static std::vector<float> s_rawRBuf;
+                        if (s_rawLBuf.size() < numFramesAvailable) s_rawLBuf.resize(numFramesAvailable);
+                        if (s_rawRBuf.size() < numFramesAvailable) s_rawRBuf.resize(numFramesAvailable);
+
                         for (UINT32 i = 0; i < numFramesAvailable; ++i) {
                             const BYTE* pFrame = pByteData + (i * bytesPerFrame);
-
-                            float rawL = 0.0f;
-                            float rawR = 0.0f;
-
+                            float rL = 0.0f, rR = 0.0f;
                             if (isTestPlaying) {
                                 DWORD elapsed = nowTick - g_testAudioStartTime.load();
                                 static float s_phase = 0.0f;
                                 s_phase += 1.0f / (float)(g_pwfx->nSamplesPerSec ? g_pwfx->nSamplesPerSec : 48000);
                                 if (elapsed < 1000) {
-                                    rawL = 0.4f * sinf(2.0f * 3.14159265f * 440.0f * s_phase);
-                                    rawR = 0.0f;
+                                    rL = 0.4f * sinf(2.0f * 3.14159265f * 440.0f * s_phase);
+                                    rR = 0.0f;
                                 } else {
-                                    rawL = 0.0f;
-                                    rawR = 0.4f * sinf(2.0f * 3.14159265f * 880.0f * s_phase);
+                                    rL = 0.0f;
+                                    rR = 0.4f * sinf(2.0f * 3.14159265f * 880.0f * s_phase);
                                 }
                             } else if (chCount == 1) {
-                                rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
-                                rawR = rawL;
+                                rL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
+                                rR = rL;
                             } else {
-                                rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
-                                rawR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
+                                rL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
+                                rR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
                             }
+                            s_rawLBuf[i] = rL;
+                            s_rawRBuf[i] = rR;
+
+                            float pL = fabsf(rL);
+                            float pR = fabsf(rR);
+                            if (pL > frameMaxPeak) frameMaxPeak = pL;
+                            if (pR > frameMaxPeak) frameMaxPeak = pR;
+                        }
+
+                        static float s_optEnvGain = 1.0f;
+                        if (g_optimizeVolume.load()) {
+                            float targetGain = 1.0f;
+                            if (frameMaxPeak > 0.003f) {
+                                if (frameMaxPeak < 0.40f) {
+                                    targetGain = std::min(2.2f, 0.75f / (frameMaxPeak + 0.03f));
+                                } else if (frameMaxPeak > 0.75f) {
+                                    targetGain = 0.75f / frameMaxPeak;
+                                } else {
+                                    targetGain = 1.0f + (0.75f - frameMaxPeak) * 0.5f;
+                                }
+                            } else {
+                                targetGain = 1.0f;
+                            }
+                            float alpha = (targetGain < s_optEnvGain) ? 0.20f : 0.015f;
+                            s_optEnvGain += (targetGain - s_optEnvGain) * alpha;
+                        } else {
+                            s_optEnvGain = 1.0f;
+                        }
+
+                        for (UINT32 i = 0; i < numFramesAvailable; ++i) {
+                            float rawL = s_rawLBuf[i];
+                            float rawR = s_rawRBuf[i];
 
                             if (g_optimizeVolume.load()) {
-                                float peak = std::max(fabsf(rawL), fabsf(rawR));
-                                static float s_agcGain = 1.0f;
-                                float targetGain = 1.0f;
-                                if (peak > 0.75f) {
-                                    targetGain = 0.75f / peak; // Lower loud peaks to prevent speaker crackling/distortion
-                                } else {
-                                    targetGain = 1.0f; // Strict 1:1 pass-through (No volume boosting)
-                                }
-                                float alpha = (targetGain < s_agcGain) ? 0.40f : 0.05f;
-                                s_agcGain += (targetGain - s_agcGain) * alpha;
-                                rawL *= s_agcGain;
-                                rawR *= s_agcGain;
+                                rawL *= s_optEnvGain;
+                                rawR *= s_optEnvGain;
+
+                                if (rawL > 0.85f) rawL = 0.85f + 0.14f * tanhf((rawL - 0.85f) / 0.14f);
+                                else if (rawL < -0.85f) rawL = -0.85f - 0.14f * tanhf((-rawL - 0.85f) / 0.14f);
+
+                                if (rawR > 0.85f) rawR = 0.85f + 0.14f * tanhf((rawR - 0.85f) / 0.14f);
+                                else if (rawR < -0.85f) rawR = -0.85f - 0.14f * tanhf((-rawR - 0.85f) / 0.14f);
                             }
 
                             float sampleL = rawL * volL;
@@ -1274,38 +1308,41 @@ void ShowLogDialog(HWND hwndParent) {
 }
 
 void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
-    int trackX1 = 145, trackX2 = 335;
+    RECT rcClient;
+    GetClientRect(hwnd, &rcClient);
+
+    int trackX1 = 145, trackX2 = 330;
     int trackW = trackX2 - trackX1;
 
-    RECT btnToggleServer = { 380, 36, 480, 66 };
-    RECT btnDeviceDropdown = { 150, 70, 480, 92 };
+    RECT btnToggleServer  = { rcClient.right - 120, 22, rcClient.right - 20, 48 };
+    RECT btnDeviceDropdown= { 145, 76, rcClient.right - 20, 96 };
 
-    RECT btnDropdownC1 = { 250, 136, 380, 154 };
-    RECT btnKickClient1= { 390, 136, 475, 154 };
+    RECT btnDropdownC1 = { 250, 147, 380, 165 };
+    RECT btnKickClient1= { 390, 147, rcClient.right - 20, 165 };
 
-    RECT btnDropdownC2 = { 250, 158, 380, 176 };
-    RECT btnKickClient2= { 390, 158, 475, 176 };
+    RECT btnDropdownC2 = { 250, 169, 380, 187 };
+    RECT btnKickClient2= { 390, 169, rcClient.right - 20, 187 };
 
-    RECT btnMasterMinus  = { 345, 352, 385, 374 };
-    RECT btnMasterPlus   = { 390, 352, 430, 374 };
+    RECT btnReset  = { rcClient.right - 70, 316, rcClient.right - 20, 336 };
+    RECT btnOptVol = { rcClient.right - 205, 316, rcClient.right - 80, 336 };
 
-    RECT btnLeftMinus    = { 345, 390, 385, 412 };
-    RECT btnLeftPlus     = { 390, 390, 430, 412 };
+    RECT btnMuteMaster = { 340, 346, 415, 368 };
+    RECT btnMuteLeft   = { 340, 384, 415, 406 };
+    RECT btnMuteRight  = { 340, 422, 415, 444 };
 
-    RECT btnRightMinus   = { 345, 428, 385, 450 };
-    RECT btnRightPlus    = { 390, 428, 430, 450 };
-
-    RECT btnReset        = { 430, 320, 480, 340 };
+    RECT btnLogsFooter = { 318, 486, 388, 510 };
+    RECT rFooterText   = { rcClient.right - 115, 486, rcClient.right - 10, 510 };
 
     if (isClick) {
         POINT pt = { mx, my };
-        RECT rcClient;
-        GetClientRect(hwnd, &rcClient);
-
-        RECT rFooterText = { rcClient.right - 150, 490, rcClient.right - 20, 514 };
 
         if (PtInRect(&rFooterText, pt)) {
             ShowAboutDialog(hwnd);
+            return;
+        }
+
+        if (PtInRect(&btnLogsFooter, pt)) {
+            ShowLogDialog(hwnd);
             return;
         }
 
@@ -1344,7 +1381,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             SIZE sz;
             GetTextExtentPoint32W(hdcTemp, wIp.c_str(), (int)wIp.length(), &sz);
             int pillW = sz.cx + 10;
-            RECT rIpPill = { startX, 50, startX + pillW, 70 };
+            RECT rIpPill = { startX, 48, startX + pillW, 68 };
             if (PtInRect(&rIpPill, pt)) {
                 SelectObject(hdcTemp, oldF);
                 ReleaseDC(hwnd, hdcTemp);
@@ -1368,9 +1405,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         // Handle open dropdown selection first
         int openMenu = g_openDropdown.load();
         if (openMenu == 1) {
-            RECT rOpt1 = { 250, 160, 380, 178 };
-            RECT rOpt2 = { 250, 180, 380, 198 };
-            RECT rOpt3 = { 250, 200, 380, 218 };
+            RECT rOpt1 = { 250, 168, 380, 186 };
+            RECT rOpt2 = { 250, 188, 380, 206 };
+            RECT rOpt3 = { 250, 208, 380, 226 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client1Channel.store(CLIENT_MODE_LEFT);
                 if (g_clientSockets.size() >= 2) g_client2Channel.store(CLIENT_MODE_RIGHT);
@@ -1391,9 +1428,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 2) {
-            RECT rOpt1 = { 250, 182, 380, 200 };
-            RECT rOpt2 = { 250, 202, 380, 220 };
-            RECT rOpt3 = { 250, 222, 380, 240 };
+            RECT rOpt1 = { 250, 190, 380, 208 };
+            RECT rOpt2 = { 250, 210, 380, 228 };
+            RECT rOpt3 = { 250, 230, 380, 248 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client2Channel.store(CLIENT_MODE_LEFT);
                 if (g_clientSockets.size() >= 1) g_client1Channel.store(CLIENT_MODE_RIGHT);
@@ -1415,9 +1452,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 3) {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int itemY = 100;
+            int itemY = 98;
             for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 150, itemY, 480, itemY + 18 };
+                RECT rOpt = { 150, itemY, rcClient.right - 20, itemY + 18 };
                 if (PtInRect(&rOpt, pt)) {
                     g_selectedDeviceIndex.store((int)k);
                     g_deviceChanged.store(true); // Signal audio loop thread to switch audio endpoint
@@ -1430,7 +1467,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE);
         }
 
-        RECT btnSwapLR = { 375, 114, 475, 132 };
+        RECT btnSwapLR = { rcClient.right - 105, 126, rcClient.right - 20, 144 };
         if (PtInRect(&btnSwapLR, pt)) {
             ClientChannelMode tmp = g_client1Channel.load();
             g_client1Channel.store(g_client2Channel.load());
@@ -1439,7 +1476,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        RECT btnTestSound = { 375, 200, 475, 220 };
+        RECT btnTestSound = { rcClient.right - 105, 214, rcClient.right - 20, 234 };
         if (PtInRect(&btnTestSound, pt)) {
             if (g_isTestAudioPlaying.load()) {
                 g_isTestAudioPlaying.store(false);
@@ -1463,16 +1500,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        RECT btnToggleServer = { 380, 26, 480, 52 };
         if (PtInRect(&btnToggleServer, pt)) {
             g_serverActive.store(!g_serverActive.load());
             InvalidateRect(hwnd, NULL, FALSE);
-            return;
-        }
-
-        RECT btnLogsHeader = { 295, 26, 365, 52 };
-        if (PtInRect(&btnLogsHeader, pt)) {
-            ShowLogDialog(hwnd);
             return;
         }
 
@@ -1505,15 +1535,11 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             }
         }
 
-        RECT btnMuteMaster = { 345, 352, 425, 374 };
-        RECT btnMuteLeft   = { 345, 390, 425, 412 };
-        RECT btnMuteRight  = { 345, 428, 425, 450 };
-        RECT btnOptVol     = { 300, 320, 420, 340 };
-
         if (PtInRect(&btnOptVol, pt)) {
             bool newState = !g_optimizeVolume.load();
             g_optimizeVolume.store(newState);
             SetOptimizeVolumeEnabled(newState);
+            SaveServerConfig();
             InvalidateRect(hwnd, NULL, FALSE);
             return;
         }
@@ -1525,6 +1551,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_isMuted.store(false);
             g_isMutedL.store(false);
             g_isMutedR.store(false);
+            g_optimizeVolume.store(true);
+            SetOptimizeVolumeEnabled(true);
+            SaveServerConfig();
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
@@ -1543,9 +1572,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (my >= 344 && my <= 376) g_activeDrag = DRAG_MASTER;
-        else if (my >= 382 && my <= 414) g_activeDrag = DRAG_GAIN_L;
-        else if (my >= 420 && my <= 452) g_activeDrag = DRAG_GAIN_R;
+        if (my >= 344 && my <= 372) g_activeDrag = DRAG_MASTER;
+        else if (my >= 382 && my <= 410) g_activeDrag = DRAG_GAIN_L;
+        else if (my >= 420 && my <= 448) g_activeDrag = DRAG_GAIN_R;
     }
 
     if (g_activeDrag != DRAG_NONE) {
@@ -1622,10 +1651,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         Shell_NotifyIconW(NIM_ADD, &g_nid);
 
         bool startupChecked = IsRunOnStartupEnabled();
-        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 491, 175, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
+        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 488, 165, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
 
         bool minToTrayChecked = IsMinimizeToTrayEnabled();
-        g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 200, 491, 140, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
+        g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 190, 488, 125, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
 
         g_optimizeVolume.store(IsOptimizeVolumeEnabled());
 
@@ -1707,38 +1736,39 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             bool isHand = false;
 
             // 1. Footer About Developer link
-            RECT rFooterText = { rcClient.right - 150, 490, rcClient.right - 20, 514 };
+            RECT rFooterText = { rcClient.right - 115, 486, rcClient.right - 10, 510 };
             if (PtInRect(&rFooterText, pt)) isHand = true;
 
-            // 2. Footer Checkboxes
-            if (pt.y >= 488 && pt.y <= 515 && pt.x >= 18 && pt.x <= 350) isHand = true;
+            // 2. Footer LOGS button & Checkboxes
+            RECT btnLogsFooter = { 318, 486, 388, 510 };
+            if (PtInRect(&btnLogsFooter, pt)) isHand = true;
+            if (pt.y >= 486 && pt.y <= 512 && pt.x >= 18 && pt.x <= 312) isHand = true;
 
             // 3. IP Capsule Badges
-            if (pt.y >= 48 && pt.y <= 72 && pt.x >= 95 && pt.x <= 480) isHand = true;
+            if (pt.y >= 48 && pt.y <= 70 && pt.x >= 95 && pt.x <= 480) isHand = true;
 
-            // 4. Server Stop/Start & Logs buttons
-            RECT btnToggleServer = { 380, 26, 480, 52 };
-            RECT btnLogsHeader   = { 295, 26, 365, 52 };
-            if (PtInRect(&btnToggleServer, pt) || PtInRect(&btnLogsHeader, pt)) isHand = true;
+            // 4. Server Stop/Start button
+            RECT btnToggleServer = { rcClient.right - 120, 22, rcClient.right - 20, 48 };
+            if (PtInRect(&btnToggleServer, pt)) isHand = true;
 
             // 5. Audio Device Dropdown
-            RECT btnDeviceDropdown = { 145, 78, 480, 100 };
+            RECT btnDeviceDropdown = { 145, 76, rcClient.right - 20, 96 };
             if (PtInRect(&btnDeviceDropdown, pt)) isHand = true;
 
             // 6. Swap L/R button
-            RECT btnSwapLR = { 375, 126, 475, 144 };
+            RECT btnSwapLR = { rcClient.right - 105, 126, rcClient.right - 20, 144 };
             if (PtInRect(&btnSwapLR, pt)) isHand = true;
 
-            // 7. Client Channel Mode Selection Buttons
-            if ((pt.y >= 155 && pt.y <= 198 && pt.x >= 150 && pt.x <= 480) ||
-                (pt.y >= 235 && pt.y <= 278 && pt.x >= 150 && pt.x <= 480)) isHand = true;
+            // 7. Client Channel Mode Selection & Kick Buttons
+            if (pt.y >= 145 && pt.y <= 188 && pt.x >= 245 && pt.x <= 480) isHand = true;
 
             // 8. Test Sound & Optimize Volume buttons
-            if (pt.y >= 275 && pt.y <= 305 && pt.x >= 365 && pt.x <= 480) isHand = true;
-            if (pt.y >= 345 && pt.y <= 372 && pt.x >= 25 && pt.x <= 180) isHand = true;
+            RECT btnTestSound = { rcClient.right - 105, 214, rcClient.right - 20, 234 };
+            if (PtInRect(&btnTestSound, pt)) isHand = true;
+            if (pt.y >= 314 && pt.y <= 338 && pt.x >= 265 && pt.x <= 480) isHand = true;
 
             // 9. Volume sliders area & Mute/Reset buttons
-            if (pt.y >= 325 && pt.y <= 465 && pt.x >= 20 && pt.x <= 480) isHand = true;
+            if (pt.y >= 344 && pt.y <= 450 && pt.x >= 20 && pt.x <= 480) isHand = true;
 
             if (isHand) {
                 SetCursor(LoadCursor(NULL, IDC_HAND));
@@ -1868,7 +1898,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         COLORREF cardBorderColor = RGB(38, 48, 72);
 
         // Server Status Card
-        RECT card1 = { 20, 20, rcClient.right - 20, 114 };
+        RECT card1 = { 20, 16, rcClient.right - 20, 110 };
         DrawRoundedRectOutline(memDC, card1, cardBgColor, cardBorderColor, 14);
 
         bool isActive = g_serverActive.load();
@@ -1877,7 +1907,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBRUSH oldB = (HBRUSH)SelectObject(memDC, dotBrush);
         HPEN nullPen = CreatePen(PS_NULL, 0, RGB(0,0,0));
         HPEN oldP = (HPEN)SelectObject(memDC, nullPen);
-        Ellipse(memDC, 35, 32, 47, 44);
+        Ellipse(memDC, 35, 30, 47, 42);
         SelectObject(memDC, oldB);
         SelectObject(memDC, oldP);
         DeleteObject(dotBrush);
@@ -1887,7 +1917,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(memDC, RGB(255, 255, 255));
 
         std::wstring statusText = isActive ? L"Status: RUNNING (5000)" : L"Status: STOPPED";
-        TextOutW(memDC, 55, 28, statusText.c_str(), (int)statusText.length());
+        TextOutW(memDC, 55, 26, statusText.c_str(), (int)statusText.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
@@ -1900,7 +1930,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             c2Ip = g_client2IpStr;
         }
 
-        TextOutW(memDC, 35, 54, L"Local IP:", 9);
+        TextOutW(memDC, 35, 52, L"Local IP:", 9);
 
         std::vector<std::string> ipList;
         {
@@ -1924,7 +1954,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             GetTextExtentPoint32W(memDC, wIp.c_str(), (int)wIp.length(), &sz);
 
             int pillW = sz.cx + 10;
-            RECT rIpPill = { startX, 50, startX + pillW, 70 };
+            RECT rIpPill = { startX, 48, startX + pillW, 68 };
 
             bool isCopied = ((int)idx == activeCopied);
             COLORREF bgCol   = isCopied ? RGB(0, 230, 118) : RGB(28, 36, 52);
@@ -1936,7 +1966,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             startX += pillW + 6;
         }
 
-        TextOutW(memDC, 35, 82, L"PC Audio Device:", 16);
+        TextOutW(memDC, 35, 78, L"PC Audio Device:", 16);
         std::string selectedDevName = "Default Playback Device";
         {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
@@ -1948,18 +1978,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
         std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  v";
 
-        RECT btnDeviceDropdown = { 145, 78, 480, 100 };
+        RECT btnDeviceDropdown = { 145, 76, rcClient.right - 20, 96 };
         DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(32, 40, 58), RGB(0, 229, 255));
 
-        RECT btnToggleServer = { rcClient.right - 110, 24, rcClient.right - 20, 50 };
+        RECT btnToggleServer = { rcClient.right - 120, 22, rcClient.right - 20, 48 };
         if (isActive) {
             DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(55, 25, 33), RGB(255, 82, 82));
         } else {
             DrawPillButtonW(memDC, btnToggleServer, L"START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
         }
-
-        RECT btnLogsHeader = { rcClient.right - 200, 24, rcClient.right - 115, 50 };
-        DrawPillButtonW(memDC, btnLogsHeader, L"📋 LOGS", RGB(34, 42, 60), RGB(0, 229, 255));
 
         // Active Clients Card
         RECT card2 = { 20, 122, rcClient.right - 20, 198 };
@@ -1967,10 +1994,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 118, L"📱 Active Connected Clients", 27);
+        std::wstring card2Title = L"📱 Active Connected Clients";
+        TextOutW(memDC, 35, 128, card2Title.c_str(), (int)card2Title.length());
 
         if (g_clientSockets.size() >= 2) {
-            RECT btnSwapLR = { 375, 114, 475, 132 };
+            RECT btnSwapLR = { rcClient.right - 105, 126, rcClient.right - 20, 144 };
             DrawPillButtonW(memDC, btnSwapLR, L"Swap L/R", RGB(32, 40, 58), RGB(0, 229, 255));
         }
 
@@ -1978,18 +2006,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         if (c1Ip == "None" && c2Ip == "None") {
             SetTextColor(memDC, RGB(130, 145, 170));
-            TextOutW(memDC, 35, 144, L"[Idle] No active clients connected. Open DeskSound app on phone.", 65);
+            std::wstring idleText = L"[Idle] No active clients connected. Open DeskSound app on phone.";
+            TextOutW(memDC, 35, 154, idleText.c_str(), (int)idleText.length());
         } else {
             SetTextColor(memDC, RGB(255, 255, 255));
             std::wstring c1Text = L"Client #1: " + Utf8ToWide(c1Ip);
             std::wstring c2Text = L"Client #2: " + Utf8ToWide(c2Ip);
 
-            TextOutW(memDC, 35, 138, c1Text.c_str(), (int)c1Text.length());
-            TextOutW(memDC, 35, 160, c2Text.c_str(), (int)c2Text.length());
+            TextOutW(memDC, 35, 149, c1Text.c_str(), (int)c1Text.length());
+            TextOutW(memDC, 35, 171, c2Text.c_str(), (int)c2Text.length());
 
             if (c1Ip != "None") {
-                RECT btnDropdownC1 = { 250, 136, 380, 154 };
-                RECT btnKickClient1= { 390, 136, 475, 154 };
+                RECT btnDropdownC1 = { 250, 147, 380, 165 };
+                RECT btnKickClient1= { 390, 147, rcClient.right - 20, 165 };
 
                 ClientChannelMode ch1 = g_client1Channel.load();
                 const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
@@ -1999,8 +2028,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
 
             if (c2Ip != "None") {
-                RECT btnDropdownC2 = { 250, 158, 380, 176 };
-                RECT btnKickClient2= { 390, 158, 475, 176 };
+                RECT btnDropdownC2 = { 250, 169, 380, 187 };
+                RECT btnKickClient2= { 390, 169, rcClient.right - 20, 187 };
 
                 ClientChannelMode ch2 = g_client2Channel.load();
                 const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
@@ -2011,106 +2040,108 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         // Stereo Peak Audio Visualizer Meter Card
-        RECT card3 = { 20, 194, rcClient.right - 20, 299 };
+        RECT card3 = { 20, 210, rcClient.right - 20, 298 };
         DrawRoundedRectOutline(memDC, card3, cardBgColor, cardBorderColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 35, 204, L"📊 Live Stereo Audio Visualizer Meter", 36);
+        std::wstring card3Title = L"📊 Live Stereo Audio Visualizer Meter";
+        TextOutW(memDC, 35, 216, card3Title.c_str(), (int)card3Title.length());
 
-        RECT btnTestSound = { 375, 200, 475, 220 };
+        RECT btnTestSound = { rcClient.right - 105, 214, rcClient.right - 20, 234 };
         bool isTesting = g_isTestAudioPlaying.load();
         DrawPillButtonW(memDC, btnTestSound, isTesting ? L"Playing..." : L"Test Sound", isTesting ? RGB(0, 230, 118) : RGB(32, 40, 58), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
 
-        RECT rBarL_Bg = { 70, 232, rcClient.right - 40, 250 };
-        RECT rBarR_Bg = { 70, 262, rcClient.right - 40, 280 };
+        RECT rBarL_Bg = { 65, 241, rcClient.right - 35, 259 };
+        RECT rBarR_Bg = { 65, 267, rcClient.right - 35, 285 };
         DrawRoundedRect(memDC, rBarL_Bg, RGB(14, 18, 26), 6);
         DrawRoundedRect(memDC, rBarR_Bg, RGB(14, 18, 26), 6);
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
-        TextOutW(memDC, 35, 234, L"L:", 2);
-        TextOutW(memDC, 35, 264, L"R:", 2);
+        TextOutW(memDC, 35, 242, L"L:", 2);
+        TextOutW(memDC, 35, 268, L"R:", 2);
 
         float rmsL = g_rmsL_smooth.load();
         float rmsR = g_rmsR_smooth.load();
-        int maxBarW = (rcClient.right - 40) - 70;
+        int maxBarW = (rcClient.right - 35) - 65;
         int barW_L = (int)(rmsL * 3.0f * maxBarW);
         int barW_R = (int)(rmsR * 3.0f * maxBarW);
         if (barW_L > maxBarW) barW_L = maxBarW;
         if (barW_R > maxBarW) barW_R = maxBarW;
 
         if (barW_L > 0) {
-            RECT rBarL = { 70, 232, 70 + barW_L, 250 };
+            RECT rBarL = { 65, 241, 65 + barW_L, 259 };
             COLORREF colorL = (rmsL > 0.75f) ? RGB(255, 82, 82) : RGB(0, 229, 255);
             DrawRoundedRect(memDC, rBarL, colorL, 6);
         }
         if (barW_R > 0) {
-            RECT rBarR = { 70, 262, 70 + barW_R, 280 };
+            RECT rBarR = { 65, 267, 65 + barW_R, 285 };
             COLORREF colorR = (rmsR > 0.75f) ? RGB(255, 82, 82) : RGB(0, 229, 255);
             DrawRoundedRect(memDC, rBarR, colorR, 6);
         }
 
         // Volume & Channel Gain Control Card
-        RECT card4 = { 20, 307, rcClient.right - 20, 466 };
+        RECT card4 = { 20, 310, rcClient.right - 20, 468 };
         DrawRoundedRectOutline(memDC, card4, cardBgColor, cardBorderColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 324, L"🎛️ Volume & Channel Gain Control", 32);
+        std::wstring card4Title = L"🎛️ Volume & Channel Gain Control";
+        TextOutW(memDC, 35, 320, card4Title.c_str(), (int)card4Title.length());
 
-        RECT btnReset = { 430, 320, 480, 340 };
+        RECT btnReset = { rcClient.right - 70, 316, rcClient.right - 20, 336 };
         DrawPillButtonW(memDC, btnReset, L"Reset", RGB(34, 42, 60), RGB(255, 255, 255));
 
         bool isOptVol = g_optimizeVolume.load();
-        RECT btnOptVol = { 300, 320, 420, 340 };
+        RECT btnOptVol = { rcClient.right - 205, 316, rcClient.right - 80, 336 };
         DrawPillButtonW(memDC, btnOptVol, isOptVol ? L"✨ OPTIMIZE: ON" : L"OPTIMIZE: OFF", isOptVol ? RGB(0, 229, 255) : RGB(34, 42, 60), isOptVol ? RGB(18, 22, 33) : RGB(160, 175, 200));
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 35, 356, L"Master Volume:", 14);
-        TextOutW(memDC, 35, 394, L"Left (L) Volume:", 16);
-        TextOutW(memDC, 35, 432, L"Right (R) Volume:", 17);
+        TextOutW(memDC, 35, 350, L"Master Volume:", 14);
+        TextOutW(memDC, 35, 388, L"Left (L) Volume:", 16);
+        TextOutW(memDC, 35, 426, L"Right (R) Volume:", 17);
 
-        int trackX1 = 145, trackX2 = 335;
+        int trackX1 = 145, trackX2 = 330;
         int trackW = trackX2 - trackX1;
 
         float mNorm = std::max(0.0f, std::min(1.0f, g_masterVolume.load() / 100.0f));
-        RECT rTrackM_Bg = { trackX1, 360, trackX2, 366 };
+        RECT rTrackM_Bg = { trackX1, 354, trackX2, 360 };
         DrawRoundedRect(memDC, rTrackM_Bg, RGB(24, 30, 44), 6);
         if (mNorm > 0.0f) {
-            RECT rTrackM_Fill = { trackX1, 360, trackX1 + (int)(mNorm * trackW), 366 };
+            RECT rTrackM_Fill = { trackX1, 354, trackX1 + (int)(mNorm * trackW), 360 };
             DrawRoundedRect(memDC, rTrackM_Fill, RGB(0, 229, 255), 6);
         }
         int kxM = trackX1 + (int)(mNorm * trackW);
-        RECT rKnobM = { kxM - 7, 356, kxM + 7, 370 };
+        RECT rKnobM = { kxM - 7, 350, kxM + 7, 364 };
         DrawRoundedRect(memDC, rKnobM, RGB(255, 255, 255), 14);
 
         float gLNorm = std::max(0.0f, std::min(1.0f, g_gainL.load() / 100.0f));
-        RECT rTrackL_Bg = { trackX1, 398, trackX2, 404 };
+        RECT rTrackL_Bg = { trackX1, 392, trackX2, 398 };
         DrawRoundedRect(memDC, rTrackL_Bg, RGB(24, 30, 44), 6);
         if (gLNorm > 0.0f) {
-            RECT rTrackL_Fill = { trackX1, 398, trackX1 + (int)(gLNorm * trackW), 404 };
+            RECT rTrackL_Fill = { trackX1, 392, trackX1 + (int)(gLNorm * trackW), 398 };
             DrawRoundedRect(memDC, rTrackL_Fill, RGB(0, 229, 255), 6);
         }
         int kxL = trackX1 + (int)(gLNorm * trackW);
-        RECT rKnobL = { kxL - 7, 394, kxL + 7, 408 };
+        RECT rKnobL = { kxL - 7, 388, kxL + 7, 402 };
         DrawRoundedRect(memDC, rKnobL, RGB(255, 255, 255), 14);
 
         float gRNorm = std::max(0.0f, std::min(1.0f, g_gainR.load() / 100.0f));
-        RECT rTrackR_Bg = { trackX1, 436, trackX2, 442 };
+        RECT rTrackR_Bg = { trackX1, 430, trackX2, 436 };
         DrawRoundedRect(memDC, rTrackR_Bg, RGB(24, 30, 44), 6);
         if (gRNorm > 0.0f) {
-            RECT rTrackR_Fill = { trackX1, 436, trackX1 + (int)(gRNorm * trackW), 442 };
+            RECT rTrackR_Fill = { trackX1, 430, trackX1 + (int)(gRNorm * trackW), 436 };
             DrawRoundedRect(memDC, rTrackR_Fill, RGB(0, 229, 255), 6);
         }
         int kxR = trackX1 + (int)(gRNorm * trackW);
-        RECT rKnobR = { kxR - 7, 432, kxR + 7, 446 };
+        RECT rKnobR = { kxR - 7, 426, kxR + 7, 440 };
         DrawRoundedRect(memDC, rKnobR, RGB(255, 255, 255), 14);
 
-        RECT btnMuteMaster = { 345, 352, 425, 374 };
-        RECT btnMuteLeft   = { 345, 390, 425, 412 };
-        RECT btnMuteRight  = { 345, 428, 425, 450 };
+        RECT btnMuteMaster = { 340, 346, 415, 368 };
+        RECT btnMuteLeft   = { 340, 384, 415, 406 };
+        RECT btnMuteRight  = { 340, 422, 415, 444 };
 
         bool isMutedM = g_isMuted.load();
         bool isMutedL = g_isMutedL.load();
@@ -2126,32 +2157,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         swprintf(strR, 16, L"%d%%", (int)g_gainR.load());
 
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, rcClient.right - 65, 356, strMaster, (int)wcslen(strMaster));
-        TextOutW(memDC, rcClient.right - 65, 394, strL, (int)wcslen(strL));
-        TextOutW(memDC, rcClient.right - 65, 432, strR, (int)wcslen(strR));
+        TextOutW(memDC, rcClient.right - 65, 350, strMaster, (int)wcslen(strMaster));
+        TextOutW(memDC, rcClient.right - 65, 388, strL, (int)wcslen(strL));
+        TextOutW(memDC, rcClient.right - 65, 426, strR, (int)wcslen(strR));
+
+        RECT btnLogsFooter = { 318, 486, 388, 510 };
+        DrawPillButtonW(memDC, btnLogsFooter, L"📋 LOGS", RGB(34, 42, 60), RGB(0, 229, 255));
 
         SelectObject(memDC, g_hFontFooter ? g_hFontFooter : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, rcClient.right - 145, 480, L"About Developer", 15);
+        TextOutW(memDC, rcClient.right - 105, 490, L"About Developer", 15);
 
         // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
         int openMenu = g_openDropdown.load();
         if (openMenu == 1 && c1Ip != "None") {
-            RECT rMenuBg = { 248, 158, 382, 222 };
+            RECT rMenuBg = { 248, 166, 382, 230 };
             DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 160, 380, 178 };
-            RECT rOpt2 = { 250, 180, 380, 198 };
-            RECT rOpt3 = { 250, 200, 380, 218 };
+            RECT rOpt1 = { 250, 168, 380, 186 };
+            RECT rOpt2 = { 250, 188, 380, 206 };
+            RECT rOpt3 = { 250, 208, 380, 226 };
             ClientChannelMode ch1 = g_client1Channel.load();
             DrawPillButtonW(memDC, rOpt1, L"Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButtonW(memDC, rOpt2, L"Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButtonW(memDC, rOpt3, L"Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
         } else if (openMenu == 2 && c2Ip != "None") {
-            RECT rMenuBg = { 248, 180, 382, 244 };
+            RECT rMenuBg = { 248, 188, 382, 252 };
             DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 182, 380, 200 };
-            RECT rOpt2 = { 250, 202, 380, 220 };
-            RECT rOpt3 = { 250, 222, 380, 240 };
+            RECT rOpt1 = { 250, 190, 380, 208 };
+            RECT rOpt2 = { 250, 210, 380, 228 };
+            RECT rOpt3 = { 250, 230, 380, 248 };
             ClientChannelMode ch2 = g_client2Channel.load();
             DrawPillButtonW(memDC, rOpt1, L"Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButtonW(memDC, rOpt2, L"Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
@@ -2160,12 +2194,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
             int count = (int)g_audioDevices.size();
             if (count > 8) count = 8;
-            RECT rMenuBg = { 148, 98, 482, 100 + count * 20 };
+            RECT rMenuBg = { 148, 96, rcClient.right - 18, 98 + count * 20 };
             DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            int itemY = 100;
+            int itemY = 98;
             int selIdx = g_selectedDeviceIndex.load();
             for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 150, itemY, 480, itemY + 18 };
+                RECT rOpt = { 150, itemY, rcClient.right - 20, itemY + 18 };
                 std::string devName = g_audioDevices[k].name;
                 if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
                 std::wstring wDevName = Utf8ToWide(devName);
