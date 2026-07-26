@@ -1861,8 +1861,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         float curL = g_rmsL_smooth.load();
         float curR = g_rmsR_smooth.load();
 
-        float nextL = (rawL > curL) ? rawL : (curL * 0.82f + rawL * 0.18f);
-        float nextR = (rawR > curR) ? rawR : (curR * 0.82f + rawR * 0.18f);
+        float nextL = (rawL > curL) ? rawL : (curL * 0.85f + rawL * 0.15f);
+        float nextR = (rawR > curR) ? rawR : (curR * 0.85f + rawR * 0.15f);
         g_rmsL_smooth.store(nextL);
         g_rmsR_smooth.store(nextR);
 
