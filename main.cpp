@@ -986,7 +986,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         if (g_clientSockets.size() >= 2) {
             RECT btnSwapLR = { 375, 152, 475, 170 };
-            DrawPillButton(memDC, btnSwapLR, "⇄ Swap L/R", RGB(34, 42, 60), RGB(0, 229, 255));
+            DrawPillButton(memDC, btnSwapLR, "Swap L/R", RGB(34, 42, 60), RGB(0, 229, 255));
         }
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -1020,45 +1020,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             DrawPillButton(memDC, btnKickClient2, "Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
         }
 
-        // Draw active dropdown popup menu overlay
-        int openMenu = g_openDropdown.load();
-        if (openMenu == 1 && g_client1IpStr != "None") {
-            RECT rMenuBg = { 248, 192, 382, 254 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 194, 380, 212 };
-            RECT rOpt2 = { 250, 214, 380, 232 };
-            RECT rOpt3 = { 250, 234, 380, 252 };
-            ClientChannelMode ch1 = g_client1Channel.load();
-            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-        } else if (openMenu == 2 && g_client2IpStr != "None") {
-            RECT rMenuBg = { 248, 134, 382, 196 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 136, 380, 154 };
-            RECT rOpt2 = { 250, 156, 380, 174 };
-            RECT rOpt3 = { 250, 176, 380, 194 };
-            ClientChannelMode ch2 = g_client2Channel.load();
-            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-        } else if (openMenu == 3) {
-            std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int count = (int)g_audioDevices.size();
-            if (count > 8) count = 8;
-            RECT rMenuBg = { 148, 134, 482, 136 + count * 20 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            int itemY = 136;
-            int selIdx = g_selectedDeviceIndex.load();
-            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 150, itemY, 480, itemY + 18 };
-                std::string devName = g_audioDevices[k].name;
-                if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
-                DrawPillButton(memDC, rOpt, devName.c_str(), (selIdx == (int)k) ? RGB(0, 229, 255) : RGB(34, 42, 60), (selIdx == (int)k) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-                itemY += 20;
-            }
-        }
-
         // Stereo Peak Audio Visualizer Meter Card
         RECT card3 = { 20, 230, rcClient.right - 20, 335 };
         FillRect(memDC, &card3, cardBrush);
@@ -1069,7 +1030,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         RECT btnTestSound = { 375, 238, 475, 258 };
         bool isTesting = g_isTestAudioPlaying.load();
-        DrawPillButton(memDC, btnTestSound, isTesting ? "Playing..." : "🎵 Test Sound", isTesting ? RGB(0, 230, 118) : RGB(34, 42, 60), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
+        DrawPillButton(memDC, btnTestSound, isTesting ? "Playing..." : "Test Sound", isTesting ? RGB(0, 230, 118) : RGB(34, 42, 60), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
 
         HBRUSH meterBg = CreateSolidBrush(RGB(18, 22, 33));
         RECT rBarL_Bg = { 70, 270, rcClient.right - 40, 288 };
@@ -1118,6 +1079,45 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         TextOutA(memDC, 35, 392, "Master Volume:", 14);
         TextOutA(memDC, 35, 430, "Left (L) Volume:", 16);
         TextOutA(memDC, 35, 468, "Right (R) Volume:", 17);
+
+        // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
+        int openMenu = g_openDropdown.load();
+        if (openMenu == 1 && g_client1IpStr != "None") {
+            RECT rMenuBg = { 248, 194, 382, 258 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            RECT rOpt1 = { 250, 196, 380, 214 };
+            RECT rOpt2 = { 250, 216, 380, 234 };
+            RECT rOpt3 = { 250, 236, 380, 254 };
+            ClientChannelMode ch1 = g_client1Channel.load();
+            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+        } else if (openMenu == 2 && g_client2IpStr != "None") {
+            RECT rMenuBg = { 248, 130, 382, 194 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            RECT rOpt1 = { 250, 132, 380, 150 };
+            RECT rOpt2 = { 250, 152, 380, 170 };
+            RECT rOpt3 = { 250, 172, 380, 190 };
+            ClientChannelMode ch2 = g_client2Channel.load();
+            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+        } else if (openMenu == 3) {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int count = (int)g_audioDevices.size();
+            if (count > 8) count = 8;
+            RECT rMenuBg = { 148, 134, 482, 136 + count * 20 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            int itemY = 136;
+            int selIdx = g_selectedDeviceIndex.load();
+            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
+                RECT rOpt = { 150, itemY, 480, itemY + 18 };
+                std::string devName = g_audioDevices[k].name;
+                if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
+                DrawPillButton(memDC, rOpt, devName.c_str(), (selIdx == (int)k) ? RGB(0, 229, 255) : RGB(34, 42, 60), (selIdx == (int)k) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+                itemY += 20;
+            }
+        }
 
         int trackX1 = 145, trackX2 = 335;
         int trackW = trackX2 - trackX1;
