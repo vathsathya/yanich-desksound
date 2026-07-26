@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ============================================================
-echo   🔊 Yanich DeskSound Automated Build & Release Publisher
+echo   Yanich DeskSound Automated Build and Release Publisher
 echo   Created by Vath Sathya
 echo ============================================================
 echo.
