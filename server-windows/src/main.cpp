@@ -906,6 +906,20 @@ void DrawRoundedRect(HDC hdc, RECT rect, COLORREF color, int radius) {
     DeleteObject(pen);
 }
 
+void DrawRoundedRectOutline(HDC hdc, RECT rect, COLORREF bgColor, COLORREF borderColor, int radius) {
+    HPEN pen = CreatePen(PS_SOLID, 1, borderColor);
+    HBRUSH brush = CreateSolidBrush(bgColor);
+    HPEN oldPen = (HPEN)SelectObject(hdc, pen);
+    HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, brush);
+
+    RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, radius, radius);
+
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBrush);
+    DeleteObject(pen);
+    DeleteObject(brush);
+}
+
 void DrawPillButtonW(HDC hdc, RECT rect, const wchar_t* label, COLORREF bgCol = RGB(34, 42, 60), COLORREF textCol = RGB(0, 229, 255)) {
     DrawRoundedRect(hdc, rect, bgCol, 8);
 
@@ -1851,10 +1865,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         COLORREF cardBgColor = RGB(23, 29, 43);
+        COLORREF cardBorderColor = RGB(38, 48, 72);
 
         // Server Status Card
         RECT card1 = { 20, 20, rcClient.right - 20, 114 };
-        DrawRoundedRect(memDC, card1, cardBgColor, 14);
+        DrawRoundedRectOutline(memDC, card1, cardBgColor, cardBorderColor, 14);
 
         bool isActive = g_serverActive.load();
 
@@ -1948,11 +1963,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         // Active Clients Card
         RECT card2 = { 20, 122, rcClient.right - 20, 198 };
-        DrawRoundedRect(memDC, card2, cardBgColor, 14);
+        DrawRoundedRectOutline(memDC, card2, cardBgColor, cardBorderColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 118, L"Active Clients", 14);
+        TextOutW(memDC, 35, 118, L"📱 Active Connected Clients", 27);
 
         if (g_clientSockets.size() >= 2) {
             RECT btnSwapLR = { 375, 114, 475, 132 };
@@ -1997,11 +2012,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         // Stereo Peak Audio Visualizer Meter Card
         RECT card3 = { 20, 194, rcClient.right - 20, 299 };
-        DrawRoundedRect(memDC, card3, cardBgColor, 14);
+        DrawRoundedRectOutline(memDC, card3, cardBgColor, cardBorderColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 35, 204, L"Live Stereo Audio Visualizer Meter", 34);
+        TextOutW(memDC, 35, 204, L"📊 Live Stereo Audio Visualizer Meter", 36);
 
         RECT btnTestSound = { 375, 200, 475, 220 };
         bool isTesting = g_isTestAudioPlaying.load();
@@ -2038,11 +2053,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         // Volume & Channel Gain Control Card
         RECT card4 = { 20, 307, rcClient.right - 20, 466 };
-        DrawRoundedRect(memDC, card4, cardBgColor, 14);
+        DrawRoundedRectOutline(memDC, card4, cardBgColor, cardBorderColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 324, L"Volume & Channel Gain Control", 29);
+        TextOutW(memDC, 35, 324, L"🎛️ Volume & Channel Gain Control", 32);
 
         RECT btnReset = { 430, 320, 480, 340 };
         DrawPillButtonW(memDC, btnReset, L"Reset", RGB(34, 42, 60), RGB(255, 255, 255));
