@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Binder
 import android.os.Build
@@ -32,14 +33,14 @@ class AudioReceiverService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
 
-    private var audioManager: android.media.AudioManager? = null
-    private val audioFocusChangeListener = android.media.AudioManager.OnAudioFocusChangeListener { focusChange ->
+    private var audioManager: AudioManager? = null
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
-            android.media.AudioManager.AUDIOFOCUS_LOSS,
-            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 audioTrack?.setVolume(0.0f)
             }
-            android.media.AudioManager.AUDIOFOCUS_GAIN -> {
+            AudioManager.AUDIOFOCUS_GAIN -> {
                 audioTrack?.setVolume(this@AudioReceiverService.volume)
             }
         }
@@ -56,16 +57,31 @@ class AudioReceiverService : Service() {
         set(value) {
             val clamped = value.coerceIn(0.0f, 1.0f)
             field = clamped
-            audioTrack?.setVolume(clamped)
+            try {
+                audioTrack?.setVolume(clamped)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting volume", e)
+            }
         }
 
     // Buffer Latency Multiplier (1 = ~10ms, 2 = ~30ms, 4 = ~100ms)
     var bufferLatencyMultiplier: Int = 2
+        set(value) {
+            field = value
+            if (isStreaming) {
+                // Re-initialize AudioTrack with new buffer size
+                try {
+                    initAudioTrack()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error updating buffer latency", e)
+                }
+            }
+        }
 
     enum class OverrideMode { AUTO, FORCE_LEFT, FORCE_RIGHT }
     var overrideMode: OverrideMode = OverrideMode.AUTO
 
-    var currentChannelModeText: String = "🎧 Channel Mode: Stereo (L + R)"
+    var currentChannelModeText: String = "Stereo (L+R)"
 
     var onStatusChangedListener: ((State, String?) -> Unit)? = null
     var onAudioLevelListener: ((Float) -> Unit)? = null
@@ -90,6 +106,7 @@ class AudioReceiverService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         createNotificationChannel()
     }
 
@@ -126,6 +143,7 @@ class AudioReceiverService : Service() {
         isConnecting = false
         serviceScope.coroutineContext.cancelChildren()
         releaseLocks()
+        abandonAudioFocus()
         
         try {
             socket?.close()
@@ -143,6 +161,26 @@ class AudioReceiverService : Service() {
         audioTrack = null
 
         notifyStatus(State.DISCONNECTED, null)
+    }
+
+    private fun requestAudioFocus() {
+        try {
+            audioManager?.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting Audio Focus", e)
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        try {
+            audioManager?.abandonAudioFocus(audioFocusChangeListener)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error abandoning Audio Focus", e)
+        }
     }
 
     private fun acquireLocks() {
@@ -184,6 +222,7 @@ class AudioReceiverService : Service() {
         isConnecting = true
         notifyStatus(State.CONNECTING, "Connecting to $ip:$port...")
         acquireLocks()
+        requestAudioFocus()
 
         serviceScope.launch {
             var retryCount = 0
@@ -261,8 +300,12 @@ class AudioReceiverService : Service() {
             trackBuilder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
         }
 
-        audioTrack?.stop()
-        audioTrack?.release()
+        try {
+            audioTrack?.stop()
+            audioTrack?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception releasing old AudioTrack", e)
+        }
 
         audioTrack = trackBuilder.build().apply {
             setVolume(this@AudioReceiverService.volume)
@@ -295,10 +338,11 @@ class AudioReceiverService : Service() {
                     isFloat = (bits == 32)
                     val modeStr = if (parts.size >= 5) parts[4].trim() else "STEREO"
                     val channelDisplay = when (modeStr) {
-                        "LEFT" -> "🎧 Channel Mode: Left Channel Only (L)"
-                        "RIGHT" -> "🎧 Channel Mode: Right Channel Only (R)"
-                        else -> "🎧 Channel Mode: Stereo (L + R)"
+                        "LEFT" -> "Left Channel (L)"
+                        "RIGHT" -> "Right Channel (R)"
+                        else -> "Stereo (L+R)"
                     }
+                    currentChannelModeText = channelDisplay
                     serviceScope.launch(Dispatchers.Main) {
                         onChannelModeListener?.invoke(channelDisplay)
                     }
@@ -338,9 +382,9 @@ class AudioReceiverService : Service() {
             if (modeTag != currentServerTag) {
                 currentServerTag = modeTag
                 val channelDisplay = when (modeTag) {
-                    1 -> "🎧 Channel Mode: Left Channel Only (L)"
-                    2 -> "🎧 Channel Mode: Right Channel Only (R)"
-                    else -> "🎧 Channel Mode: Stereo (L + R)"
+                    1 -> "Left Channel (L)"
+                    2 -> "Right Channel (R)"
+                    else -> "Stereo (L+R)"
                 }
                 currentChannelModeText = channelDisplay
                 serviceScope.launch(Dispatchers.Main) {
@@ -392,7 +436,7 @@ class AudioReceiverService : Service() {
 
                 // Measure live audio level for VU meter
                 val now = System.currentTimeMillis()
-                if (now - lastLevelReportTime > 50) {
+                if (now - lastLevelReportTime > 40) {
                     lastLevelReportTime = now
                     var sumSquare = 0.0f
                     for (i in 0 until floatCount) {
@@ -435,11 +479,20 @@ class AudioReceiverService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val stopIntent = Intent(this, AudioReceiverService::class.java).apply {
+            action = ACTION_STOP
+        }
+        val stopPendingIntent = PendingIntent.getService(
+            this, 1, stopIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISCONNECT", stopPendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

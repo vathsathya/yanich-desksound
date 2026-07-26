@@ -3,6 +3,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <windowsx.h>
 #include <commctrl.h>
 #include <shellapi.h>
 #include <iostream>
@@ -32,6 +33,12 @@
 #define WM_TRAYICON (WM_USER + 1)
 #define ID_CHK_STARTUP 1020
 
+// Tray Menu Command IDs
+#define ID_TRAY_SHOW 2001
+#define ID_TRAY_TOGGLE_SERVER 2002
+#define ID_TRAY_MUTE_MASTER 2003
+#define ID_TRAY_EXIT 2004
+
 // Per-Client Channel Mode Enum
 enum ClientChannelMode { CLIENT_MODE_STEREO = 0, CLIENT_MODE_LEFT = 1, CLIENT_MODE_RIGHT = 2 };
 std::atomic<ClientChannelMode> g_client1Channel{CLIENT_MODE_LEFT};
@@ -51,7 +58,16 @@ struct AudioDeviceInfo {
 };
 std::vector<AudioDeviceInfo> g_audioDevices;
 std::atomic<int> g_selectedDeviceIndex{0}; // 0 = Default
+std::atomic<bool> g_deviceChanged{false};
 std::mutex g_deviceMutex;
+
+std::wstring Utf8ToWide(const std::string& str) {
+    if (str.empty()) return L"";
+    int count = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.length(), NULL, 0);
+    std::wstring wstr(count, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.length(), &wstr[0], count);
+    return wstr;
+}
 
 void EnumerateAudioDevices() {
     std::lock_guard<std::mutex> lock(g_deviceMutex);
@@ -121,6 +137,8 @@ std::atomic<bool> g_isMutedR{false};
 
 std::atomic<float> g_rmsL{0.0f};
 std::atomic<float> g_rmsR{0.0f};
+std::atomic<float> g_rmsL_smooth{0.0f};
+std::atomic<float> g_rmsR_smooth{0.0f};
 
 std::atomic<bool> g_isTestAudioPlaying{false};
 std::atomic<DWORD> g_testAudioStartTime{0};
@@ -134,25 +152,31 @@ std::mutex g_formatMutex;
 
 HWND g_hwndMain = NULL;
 HWND g_hChkStartup = NULL;
-NOTIFYICONDATA g_nid = {};
+NOTIFYICONDATAW g_nid = {};
 
-HFONT g_hFontTitle = NULL;
-HFONT g_hFontBold  = NULL;
-HFONT g_hFontSub   = NULL;
-HFONT g_hFontBtn   = NULL;
+HFONT g_hFontTitle  = NULL;
+HFONT g_hFontBold   = NULL;
+HFONT g_hFontSub    = NULL;
+HFONT g_hFontBtn    = NULL;
+HFONT g_hFontFooter = NULL;
+
+HBRUSH g_hbrClassBg  = NULL;
+HBRUSH g_hbrStaticBg = NULL;
 
 void InitFonts() {
-    if (!g_hFontTitle) g_hFontTitle = CreateFontA(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-    if (!g_hFontBold)  g_hFontBold  = CreateFontA(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-    if (!g_hFontSub)   g_hFontSub   = CreateFontA(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-    if (!g_hFontBtn)   g_hFontBtn   = CreateFontA(12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+    if (!g_hFontTitle)  g_hFontTitle  = CreateFontW(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontBold)   g_hFontBold   = CreateFontW(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontSub)    g_hFontSub    = CreateFontW(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontBtn)    g_hFontBtn    = CreateFontW(12, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!g_hFontFooter) g_hFontFooter = CreateFontW(14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
 }
 
 void CleanupFonts() {
-    if (g_hFontTitle) DeleteObject(g_hFontTitle);
-    if (g_hFontBold)  DeleteObject(g_hFontBold);
-    if (g_hFontSub)   DeleteObject(g_hFontSub);
-    if (g_hFontBtn)   DeleteObject(g_hFontBtn);
+    if (g_hFontTitle)  DeleteObject(g_hFontTitle);
+    if (g_hFontBold)   DeleteObject(g_hFontBold);
+    if (g_hFontSub)    DeleteObject(g_hFontSub);
+    if (g_hFontBtn)    DeleteObject(g_hFontBtn);
+    if (g_hFontFooter) DeleteObject(g_hFontFooter);
 }
 
 enum DragTarget { DRAG_NONE, DRAG_MASTER, DRAG_GAIN_L, DRAG_GAIN_R };
@@ -228,6 +252,7 @@ void UdpDiscoveryThread() {
 
 void FetchLocalIPAddresses() {
     char hostname[256];
+    std::lock_guard<std::mutex> lock(g_clientMutex);
     g_localIpsStr = "";
     if (gethostname(hostname, sizeof(hostname)) == 0) {
         addrinfo hints{}, *res = nullptr;
@@ -324,7 +349,7 @@ void AcceptClientsThread(SOCKET listenSocket) {
                 initModeStr = "RIGHT";
             }
 
-            // Send initial 32-byte format handshake
+            // Send initial format handshake
             {
                 std::lock_guard<std::mutex> formatLock(g_formatMutex);
                 if (g_pwfx) {
@@ -341,7 +366,7 @@ void AcceptClientsThread(SOCKET listenSocket) {
     }
 }
 
-// Memory-Optimized Zero-Allocation Audio Packet Sender
+// Robust Audio Packet Sender with Complete Socket Buffer Handling
 bool SendAudioPacketWithTag(SOCKET sock, uint32_t modeTag, const char* pAudioData, int audioBytes) {
     thread_local static std::vector<char> s_sendPacketBuffer;
     size_t totalSize = 8 + audioBytes;
@@ -357,7 +382,11 @@ bool SendAudioPacketWithTag(SOCKET sock, uint32_t modeTag, const char* pAudioDat
     memcpy(s_sendPacketBuffer.data() + 8, pAudioData, audioBytes);
 
     int sent = send(sock, s_sendPacketBuffer.data(), (int)totalSize, 0);
-    if (sent == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK) {
+    if (sent == SOCKET_ERROR) {
+        int err = WSAGetLastError();
+        if (err == WSAEWOULDBLOCK) {
+            return true; // Skip frame if client socket buffer is full to prevent lag buildup
+        }
         return false;
     }
     return true;
@@ -382,7 +411,7 @@ inline float ReadSampleAsFloat(const BYTE* pFrame, UINT32 channelIndex, UINT32 b
     return 0.0f;
 }
 
-// WASAPI Audio Loop with 24/7 Infinite Auto-Recovery Loop
+// WASAPI Audio Loop with Hot Device Switching & Auto Recovery
 void WasapiAudioLoop() {
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
     CoInitialize(NULL);
@@ -437,9 +466,17 @@ void WasapiAudioLoop() {
 
         while (g_running) {
             Sleep(2);
+
+            if (g_deviceChanged.load()) {
+                g_deviceChanged.store(false);
+                break; // Switch audio device immediately
+            }
+
             if (FAILED(pCaptureClient->GetNextPacketSize(&numFramesAvailable))) break; // Device lost/changed -> auto recovery
 
             while (numFramesAvailable > 0 && g_running) {
+                if (g_deviceChanged.load()) break;
+
                 if (SUCCEEDED(pCaptureClient->GetBuffer(&pData, &numFramesAvailable, &flags, NULL, NULL)) && numFramesAvailable > 0) {
                     UINT32 bytesToRead = numFramesAvailable * g_pwfx->nBlockAlign;
 
@@ -454,7 +491,6 @@ void WasapiAudioLoop() {
                     }
 
                     if (!g_serverActive.load() || (!isTestPlaying && (flags & AUDCLNT_BUFFERFLAGS_SILENT))) {
-                        memset(pData, 0, bytesToRead);
                         g_rmsL.store(0.0f);
                         g_rmsR.store(0.0f);
                     } else if (g_pwfx && g_pwfx->nChannels >= 1) {
@@ -585,7 +621,7 @@ void WasapiAudioLoop() {
         SafeRelease(&pAudioClient);
         SafeRelease(&pDevice);
         SafeRelease(&pEnumerator);
-        Sleep(500);
+        Sleep(300);
     }
 
     timeEndPeriod(1);
@@ -606,14 +642,14 @@ void DrawRoundedRect(HDC hdc, RECT rect, COLORREF color, int radius) {
     DeleteObject(pen);
 }
 
-void DrawPillButton(HDC hdc, RECT rect, const char* label, COLORREF bgCol = RGB(34, 42, 60), COLORREF textCol = RGB(0, 229, 255)) {
+void DrawPillButtonW(HDC hdc, RECT rect, const wchar_t* label, COLORREF bgCol = RGB(34, 42, 60), COLORREF textCol = RGB(0, 229, 255)) {
     DrawRoundedRect(hdc, rect, bgCol, 8);
 
     HFONT oldF = (HFONT)SelectObject(hdc, g_hFontBtn ? g_hFontBtn : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
     SetTextColor(hdc, textCol);
     SetBkMode(hdc, TRANSPARENT);
 
-    DrawTextA(hdc, label, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawTextW(hdc, label, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     SelectObject(hdc, oldF);
 }
@@ -625,11 +661,11 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     RECT btnToggleServer = { 380, 72, 480, 102 };
     RECT btnDeviceDropdown = { 150, 112, 480, 134 };
 
-    RECT btnDropdownC1 = { 250, 164, 380, 182 };
-    RECT btnKickClient1= { 390, 164, 475, 182 };
+    RECT btnDropdownC1 = { 250, 174, 380, 192 };
+    RECT btnKickClient1= { 390, 174, 475, 192 };
 
-    RECT btnDropdownC2 = { 250, 186, 380, 204 };
-    RECT btnKickClient2= { 390, 186, 475, 204 };
+    RECT btnDropdownC2 = { 250, 196, 380, 214 };
+    RECT btnKickClient2= { 390, 196, 475, 214 };
 
     RECT btnMasterMinus  = { 345, 388, 385, 410 };
     RECT btnMasterPlus   = { 390, 388, 430, 410 };
@@ -671,9 +707,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 2) {
-            RECT rOpt1 = { 250, 132, 380, 150 };
-            RECT rOpt2 = { 250, 152, 380, 170 };
-            RECT rOpt3 = { 250, 172, 380, 190 };
+            RECT rOpt1 = { 250, 218, 380, 236 };
+            RECT rOpt2 = { 250, 238, 380, 256 };
+            RECT rOpt3 = { 250, 258, 380, 276 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client2Channel.store(CLIENT_MODE_LEFT);
                 if (g_clientSockets.size() >= 1) g_client1Channel.store(CLIENT_MODE_RIGHT);
@@ -700,6 +736,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
                 RECT rOpt = { 150, itemY, 480, itemY + 18 };
                 if (PtInRect(&rOpt, pt)) {
                     g_selectedDeviceIndex.store((int)k);
+                    g_deviceChanged.store(true); // Signal audio loop thread to switch audio endpoint
                     g_openDropdown.store(0);
                     InvalidateRect(hwnd, NULL, FALSE); return;
                 }
@@ -758,7 +795,14 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (g_client1IpStr != "None") {
+        std::string c1Ip, c2Ip;
+        {
+            std::lock_guard<std::mutex> lock(g_clientMutex);
+            c1Ip = g_client1IpStr;
+            c2Ip = g_client2IpStr;
+        }
+
+        if (c1Ip != "None") {
             if (PtInRect(&btnDropdownC1, pt)) {
                 g_openDropdown.store((openMenu == 1) ? 0 : 1);
                 InvalidateRect(hwnd, NULL, FALSE); return;
@@ -769,7 +813,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             }
         }
 
-        if (g_client2IpStr != "None") {
+        if (c2Ip != "None") {
             if (PtInRect(&btnDropdownC2, pt)) {
                 g_openDropdown.store((openMenu == 2) ? 0 : 2);
                 InvalidateRect(hwnd, NULL, FALSE); return;
@@ -834,44 +878,90 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_CREATE: {
         SetTimer(hwnd, 1, 30, NULL);
         
-        g_nid.cbSize = sizeof(NOTIFYICONDATA);
+        g_nid.cbSize = sizeof(NOTIFYICONDATAW);
         g_nid.hWnd = hwnd;
         g_nid.uID = 1;
         g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_nid.uCallbackMessage = WM_TRAYICON;
         g_nid.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(101));
-        lstrcpy(g_nid.szTip, TEXT("Yanich DeskSound Server"));
-        Shell_NotifyIcon(NIM_ADD, &g_nid);
+        lstrcpyW(g_nid.szTip, L"Yanich DeskSound Server");
+        Shell_NotifyIconW(NIM_ADD, &g_nid);
 
         bool startupChecked = IsRunOnStartupEnabled();
-        g_hChkStartup = CreateWindowExA(0, "BUTTON", "Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 515, 180, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
+        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 515, 180, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
 
-        HFONT hFontSub = CreateFontA(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-        SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)hFontSub, TRUE);
+        if (g_hFontSub) {
+            SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
+        }
         SendMessage(g_hChkStartup, BM_SETCHECK, startupChecked ? BST_CHECKED : BST_UNCHECKED, 0);
         break;
     }
 
     case WM_COMMAND: {
-        if (LOWORD(wParam) == ID_CHK_STARTUP) {
+        int wmId = LOWORD(wParam);
+        if (wmId == ID_CHK_STARTUP) {
             LRESULT chkState = SendMessage(g_hChkStartup, BM_GETCHECK, 0, 0);
             SetRunOnStartup(chkState == BST_CHECKED);
+        } else if (wmId == ID_TRAY_SHOW) {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        } else if (wmId == ID_TRAY_TOGGLE_SERVER) {
+            bool current = g_serverActive.load();
+            g_serverActive.store(!current);
+            if (!current == false) {
+                std::lock_guard<std::mutex> lock(g_clientMutex);
+                for (SOCKET s : g_clientSockets) closesocket(s);
+                g_clientSockets.clear();
+                g_client1IpStr = "None";
+                g_client2IpStr = "None";
+                g_openDropdown.store(0);
+            }
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (wmId == ID_TRAY_MUTE_MASTER) {
+            g_isMuted.store(!g_isMuted.load());
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (wmId == ID_TRAY_EXIT) {
+            g_running = false;
+            DestroyWindow(hwnd);
+        }
+        break;
+    }
+
+    case WM_CLOSE: {
+        ShowWindow(hwnd, SW_HIDE); // Hide to system tray
+        return 0;
+    }
+
+    case WM_MOUSEWHEEL: {
+        int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        ScreenToClient(hwnd, &pt);
+        float change = (zDelta > 0) ? 5.0f : -5.0f;
+        if (pt.y >= 380 && pt.y <= 412) {
+            g_masterVolume.store(std::max(0.0f, std::min(100.0f, g_masterVolume.load() + change)));
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (pt.y >= 418 && pt.y <= 450) {
+            g_gainL.store(std::max(0.0f, std::min(100.0f, g_gainL.load() + change)));
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (pt.y >= 456 && pt.y <= 488) {
+            g_gainR.store(std::max(0.0f, std::min(100.0f, g_gainR.load() + change)));
+            InvalidateRect(hwnd, NULL, FALSE);
         }
         break;
     }
 
     case WM_LBUTTONDOWN: {
         SetCapture(hwnd);
-        int mx = LOWORD(lParam);
-        int my = HIWORD(lParam);
+        int mx = GET_X_LPARAM(lParam);
+        int my = GET_Y_LPARAM(lParam);
         HandleMousePos(hwnd, mx, my, true);
         break;
     }
 
     case WM_MOUSEMOVE: {
         if (wParam & MK_LBUTTON) {
-            int mx = LOWORD(lParam);
-            int my = HIWORD(lParam);
+            int mx = GET_X_LPARAM(lParam);
+            int my = GET_Y_LPARAM(lParam);
             HandleMousePos(hwnd, mx, my, false);
         }
         break;
@@ -892,14 +982,40 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 g_rmsR.store(0.0f);
             }
         }
-        InvalidateRect(hwnd, NULL, FALSE);
+
+        // Smooth Peak-Decay Animation Filter for Meter
+        float rawL = g_rmsL.load();
+        float rawR = g_rmsR.load();
+        float curL = g_rmsL_smooth.load();
+        float curR = g_rmsR_smooth.load();
+
+        float nextL = (rawL > curL) ? rawL : (curL * 0.82f + rawL * 0.18f);
+        float nextR = (rawR > curR) ? rawR : (curR * 0.82f + rawR * 0.18f);
+        g_rmsL_smooth.store(nextL);
+        g_rmsR_smooth.store(nextR);
+
+        if (IsWindowVisible(hwnd)) {
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
         break;
     }
 
     case WM_TRAYICON: {
-        if (lParam == WM_RBUTTONUP || lParam == WM_LBUTTONDBLCLK) {
+        if (lParam == WM_LBUTTONDBLCLK) {
             ShowWindow(hwnd, SW_RESTORE);
             SetForegroundWindow(hwnd);
+        } else if (lParam == WM_RBUTTONUP) {
+            POINT pt;
+            GetCursorPos(&pt);
+            HMENU hMenu = CreatePopupMenu();
+            AppendMenuW(hMenu, MF_STRING, ID_TRAY_SHOW, L"Show Server GUI");
+            AppendMenuW(hMenu, MF_STRING, ID_TRAY_TOGGLE_SERVER, g_serverActive.load() ? L"Stop Server" : L"Start Server");
+            AppendMenuW(hMenu, MF_STRING, ID_TRAY_MUTE_MASTER, g_isMuted.load() ? L"Unmute Master" : L"Mute Master");
+            AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+            AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Exit Server");
+            SetForegroundWindow(hwnd);
+            TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+            DestroyMenu(hMenu);
         }
         break;
     }
@@ -921,12 +1037,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SetBkMode(memDC, TRANSPARENT);
 
-        HFONT hFontTitle = CreateFontA(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-        HFONT oldFont = (HFONT)SelectObject(memDC, hFontTitle);
+        HFONT oldFont = (HFONT)SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutA(memDC, 20, 20, "Yanich DeskSound Server", 23);
-        SelectObject(memDC, oldFont);
-        DeleteObject(hFontTitle);
+        TextOutW(memDC, 20, 20, L"Yanich DeskSound Server", 23);
 
         // Server Status Card
         HBRUSH cardBrush = CreateSolidBrush(RGB(28, 34, 48));
@@ -948,16 +1061,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         
-        std::string statusText = isActive ? "Server Status: RUNNING (Port 5000)" : "Server Status: STOPPED";
-        TextOutA(memDC, 55, 72, statusText.c_str(), (int)statusText.length());
+        std::wstring statusText = isActive ? L"Server Status: RUNNING (Port 5000)" : L"Server Status: STOPPED";
+        TextOutW(memDC, 55, 72, statusText.c_str(), (int)statusText.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
-        std::string ipLine = "Local IP: " + g_localIpsStr;
-        TextOutA(memDC, 55, 92, ipLine.c_str(), (int)ipLine.length());
+
+        std::string localIps, c1Ip, c2Ip;
+        {
+            std::lock_guard<std::mutex> lock(g_clientMutex);
+            localIps = g_localIpsStr;
+            c1Ip = g_client1IpStr;
+            c2Ip = g_client2IpStr;
+        }
+
+        std::wstring ipLine = L"Local IP: " + Utf8ToWide(localIps);
+        TextOutW(memDC, 55, 92, ipLine.c_str(), (int)ipLine.length());
 
         // Device Label & Dropdown
-        TextOutA(memDC, 35, 116, "PC Audio Device:", 16);
+        TextOutW(memDC, 35, 116, L"PC Audio Device:", 16);
         std::string selectedDevName = "Default Playback Device";
         {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
@@ -967,16 +1089,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
         }
         if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
-        selectedDevName += "  v";
+        std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  v";
 
         RECT btnDeviceDropdown = { 150, 112, 480, 134 };
-        DrawPillButton(memDC, btnDeviceDropdown, selectedDevName.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
 
         RECT btnToggleServer = { 380, 68, 480, 96 };
         if (isActive) {
-            DrawPillButton(memDC, btnToggleServer, "STOP SERVER", RGB(255, 82, 82), RGB(255, 255, 255));
+            DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(255, 82, 82), RGB(255, 255, 255));
         } else {
-            DrawPillButton(memDC, btnToggleServer, "START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
+            DrawPillButtonW(memDC, btnToggleServer, L"START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
         }
 
         // Active Clients Card
@@ -985,42 +1107,42 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutA(memDC, 35, 156, "Active Clients", 14);
+        TextOutW(memDC, 35, 156, L"Active Clients", 14);
 
         if (g_clientSockets.size() >= 2) {
             RECT btnSwapLR = { 375, 152, 475, 170 };
-            DrawPillButton(memDC, btnSwapLR, "Swap L/R", RGB(34, 42, 60), RGB(0, 229, 255));
+            DrawPillButtonW(memDC, btnSwapLR, L"Swap L/R", RGB(34, 42, 60), RGB(0, 229, 255));
         }
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
 
-        std::string c1Text = "Client #1: " + g_client1IpStr;
-        std::string c2Text = "Client #2: " + g_client2IpStr;
+        std::wstring c1Text = L"Client #1: " + Utf8ToWide(c1Ip);
+        std::wstring c2Text = L"Client #2: " + Utf8ToWide(c2Ip);
 
-        TextOutA(memDC, 35, 176, c1Text.c_str(), (int)c1Text.length());
-        TextOutA(memDC, 35, 198, c2Text.c_str(), (int)c2Text.length());
+        TextOutW(memDC, 35, 176, c1Text.c_str(), (int)c1Text.length());
+        TextOutW(memDC, 35, 198, c2Text.c_str(), (int)c2Text.length());
 
-        if (g_client1IpStr != "None") {
+        if (c1Ip != "None") {
             RECT btnDropdownC1 = { 250, 174, 380, 192 };
             RECT btnKickClient1= { 390, 174, 475, 192 };
 
             ClientChannelMode ch1 = g_client1Channel.load();
-            std::string labelC1 = (ch1 == CLIENT_MODE_LEFT) ? "Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? "Right (R)  v" : "Stereo (L+R)  v";
+            const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
 
-            DrawPillButton(memDC, btnDropdownC1, labelC1.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
-            DrawPillButton(memDC, btnKickClient1, "Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
+            DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(34, 42, 60), RGB(0, 229, 255));
+            DrawPillButtonW(memDC, btnKickClient1, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
         }
 
-        if (g_client2IpStr != "None") {
+        if (c2Ip != "None") {
             RECT btnDropdownC2 = { 250, 196, 380, 214 };
             RECT btnKickClient2= { 390, 196, 475, 214 };
 
             ClientChannelMode ch2 = g_client2Channel.load();
-            std::string labelC2 = (ch2 == CLIENT_MODE_LEFT) ? "Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? "Right (R)  v" : "Stereo (L+R)  v";
+            const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
 
-            DrawPillButton(memDC, btnDropdownC2, labelC2.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
-            DrawPillButton(memDC, btnKickClient2, "Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
+            DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(34, 42, 60), RGB(0, 229, 255));
+            DrawPillButtonW(memDC, btnKickClient2, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
         }
 
         // Stereo Peak Audio Visualizer Meter Card
@@ -1029,11 +1151,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutA(memDC, 35, 242, "Live Stereo Audio Visualizer Meter", 34);
+        TextOutW(memDC, 35, 242, L"Live Stereo Audio Visualizer Meter", 34);
 
         RECT btnTestSound = { 375, 238, 475, 258 };
         bool isTesting = g_isTestAudioPlaying.load();
-        DrawPillButton(memDC, btnTestSound, isTesting ? "Playing..." : "Test Sound", isTesting ? RGB(0, 230, 118) : RGB(34, 42, 60), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnTestSound, isTesting ? L"Playing..." : L"Test Sound", isTesting ? RGB(0, 230, 118) : RGB(34, 42, 60), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
 
         HBRUSH meterBg = CreateSolidBrush(RGB(18, 22, 33));
         RECT rBarL_Bg = { 70, 270, rcClient.right - 40, 288 };
@@ -1044,11 +1166,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
-        TextOutA(memDC, 35, 272, "L:", 2);
-        TextOutA(memDC, 35, 302, "R:", 2);
+        TextOutW(memDC, 35, 272, L"L:", 2);
+        TextOutW(memDC, 35, 302, L"R:", 2);
 
-        float rmsL = g_rmsL.load();
-        float rmsR = g_rmsR.load();
+        float rmsL = g_rmsL_smooth.load();
+        float rmsR = g_rmsR_smooth.load();
         int maxBarW = (rcClient.right - 40) - 70;
         int barW_L = (int)(rmsL * 3.0f * maxBarW);
         int barW_R = (int)(rmsR * 3.0f * maxBarW);
@@ -1072,55 +1194,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutA(memDC, 35, 360, "Volume & Channel Gain Control", 29);
+        TextOutW(memDC, 35, 360, L"Volume & Channel Gain Control", 29);
 
         RECT btnReset = { 430, 356, 480, 376 };
-        DrawPillButton(memDC, btnReset, "Reset", RGB(34, 42, 60), RGB(255, 255, 255));
+        DrawPillButtonW(memDC, btnReset, L"Reset", RGB(34, 42, 60), RGB(255, 255, 255));
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutA(memDC, 35, 392, "Master Volume:", 14);
-        TextOutA(memDC, 35, 430, "Left (L) Volume:", 16);
-        TextOutA(memDC, 35, 468, "Right (R) Volume:", 17);
-
-        // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
-        int openMenu = g_openDropdown.load();
-        if (openMenu == 1 && g_client1IpStr != "None") {
-            RECT rMenuBg = { 248, 194, 382, 258 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 196, 380, 214 };
-            RECT rOpt2 = { 250, 216, 380, 234 };
-            RECT rOpt3 = { 250, 236, 380, 254 };
-            ClientChannelMode ch1 = g_client1Channel.load();
-            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-        } else if (openMenu == 2 && g_client2IpStr != "None") {
-            RECT rMenuBg = { 248, 130, 382, 194 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 132, 380, 150 };
-            RECT rOpt2 = { 250, 152, 380, 170 };
-            RECT rOpt3 = { 250, 172, 380, 190 };
-            ClientChannelMode ch2 = g_client2Channel.load();
-            DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-        } else if (openMenu == 3) {
-            std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int count = (int)g_audioDevices.size();
-            if (count > 8) count = 8;
-            RECT rMenuBg = { 148, 134, 482, 136 + count * 20 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            int itemY = 136;
-            int selIdx = g_selectedDeviceIndex.load();
-            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 150, itemY, 480, itemY + 18 };
-                std::string devName = g_audioDevices[k].name;
-                if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
-                DrawPillButton(memDC, rOpt, devName.c_str(), (selIdx == (int)k) ? RGB(0, 229, 255) : RGB(34, 42, 60), (selIdx == (int)k) ? RGB(18, 22, 33) : RGB(255, 255, 255));
-                itemY += 20;
-            }
-        }
+        TextOutW(memDC, 35, 392, L"Master Volume:", 14);
+        TextOutW(memDC, 35, 430, L"Left (L) Volume:", 16);
+        TextOutW(memDC, 35, 468, L"Right (R) Volume:", 17);
 
         int trackX1 = 145, trackX2 = 335;
         int trackW = trackX2 - trackX1;
@@ -1166,27 +1249,65 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         bool isMutedL = g_isMutedL.load();
         bool isMutedR = g_isMutedR.load();
 
-        DrawPillButton(memDC, btnMuteMaster, isMutedM ? "Muted" : "Mute", isMutedM ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedM ? RGB(255, 255, 255) : RGB(0, 229, 255));
-        DrawPillButton(memDC, btnMuteLeft,   isMutedL ? "Muted" : "Mute", isMutedL ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedL ? RGB(255, 255, 255) : RGB(0, 230, 118));
-        DrawPillButton(memDC, btnMuteRight,  isMutedR ? "Muted" : "Mute", isMutedR ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedR ? RGB(255, 255, 255) : RGB(0, 230, 118));
+        DrawPillButtonW(memDC, btnMuteMaster, isMutedM ? L"Muted" : L"Mute", isMutedM ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedM ? RGB(255, 255, 255) : RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnMuteLeft,   isMutedL ? L"Muted" : L"Mute", isMutedL ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedL ? RGB(255, 255, 255) : RGB(0, 230, 118));
+        DrawPillButtonW(memDC, btnMuteRight,  isMutedR ? L"Muted" : L"Mute", isMutedR ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedR ? RGB(255, 255, 255) : RGB(0, 230, 118));
 
-        char strMaster[16], strL[16], strR[16];
-        snprintf(strMaster, sizeof(strMaster), "%d%%", (int)g_masterVolume.load());
-        snprintf(strL, sizeof(strL), "%d%%", (int)g_gainL.load());
-        snprintf(strR, sizeof(strR), "%d%%", (int)g_gainR.load());
+        wchar_t strMaster[16], strL[16], strR[16];
+        swprintf(strMaster, 16, L"%d%%", (int)g_masterVolume.load());
+        swprintf(strL, 16, L"%d%%", (int)g_gainL.load());
+        swprintf(strR, 16, L"%d%%", (int)g_gainR.load());
 
         SetTextColor(memDC, RGB(0, 230, 118));
-        TextOutA(memDC, rcClient.right - 65, 392, strMaster, (int)strlen(strMaster));
-        TextOutA(memDC, rcClient.right - 65, 430, strL, (int)strlen(strL));
-        TextOutA(memDC, rcClient.right - 65, 468, strR, (int)strlen(strR));
+        TextOutW(memDC, rcClient.right - 65, 392, strMaster, (int)wcslen(strMaster));
+        TextOutW(memDC, rcClient.right - 65, 430, strL, (int)wcslen(strL));
+        TextOutW(memDC, rcClient.right - 65, 468, strR, (int)wcslen(strR));
 
-        HFONT hFontFooter = CreateFontA(14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-        SelectObject(memDC, hFontFooter);
+        SelectObject(memDC, g_hFontFooter ? g_hFontFooter : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutA(memDC, rcClient.right - 185, 516, "Created by Vath Sathya", 22);
-        DeleteObject(hFontFooter);
+        TextOutW(memDC, rcClient.right - 185, 516, L"Created by Vath Sathya", 22);
 
         DeleteObject(cardBrush);
+
+        // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
+        int openMenu = g_openDropdown.load();
+        if (openMenu == 1 && c1Ip != "None") {
+            RECT rMenuBg = { 248, 194, 382, 258 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            RECT rOpt1 = { 250, 196, 380, 214 };
+            RECT rOpt2 = { 250, 216, 380, 234 };
+            RECT rOpt3 = { 250, 236, 380, 254 };
+            ClientChannelMode ch1 = g_client1Channel.load();
+            DrawPillButtonW(memDC, rOpt1, L"Left Channel (L)",  (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButtonW(memDC, rOpt2, L"Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButtonW(memDC, rOpt3, L"Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+        } else if (openMenu == 2 && c2Ip != "None") {
+            RECT rMenuBg = { 248, 216, 382, 280 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            RECT rOpt1 = { 250, 218, 380, 236 };
+            RECT rOpt2 = { 250, 238, 380, 256 };
+            RECT rOpt3 = { 250, 258, 380, 276 };
+            ClientChannelMode ch2 = g_client2Channel.load();
+            DrawPillButtonW(memDC, rOpt1, L"Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButtonW(memDC, rOpt2, L"Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButtonW(memDC, rOpt3, L"Stereo (L+R)",      (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+        } else if (openMenu == 3) {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int count = (int)g_audioDevices.size();
+            if (count > 8) count = 8;
+            RECT rMenuBg = { 148, 134, 482, 136 + count * 20 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
+            int itemY = 136;
+            int selIdx = g_selectedDeviceIndex.load();
+            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
+                RECT rOpt = { 150, itemY, 480, itemY + 18 };
+                std::string devName = g_audioDevices[k].name;
+                if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
+                std::wstring wDevName = Utf8ToWide(devName);
+                DrawPillButtonW(memDC, rOpt, wDevName.c_str(), (selIdx == (int)k) ? RGB(0, 229, 255) : RGB(34, 42, 60), (selIdx == (int)k) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+                itemY += 20;
+            }
+        }
 
         BitBlt(hdc, 0, 0, rcClient.right, rcClient.bottom, memDC, 0, 0, SRCCOPY);
         SelectObject(memDC, oldBitmap);
@@ -1201,26 +1322,47 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HDC hdcStatic = (HDC)wParam;
         SetTextColor(hdcStatic, RGB(160, 175, 200));
         SetBkColor(hdcStatic, RGB(18, 22, 33));
-        static HBRUSH hbrBg = CreateSolidBrush(RGB(18, 22, 33));
-        return (INT_PTR)hbrBg;
+        if (!g_hbrStaticBg) {
+            g_hbrStaticBg = CreateSolidBrush(RGB(18, 22, 33));
+        }
+        return (INT_PTR)g_hbrStaticBg;
     }
 
     case WM_DESTROY: {
         g_running = false;
-        Shell_NotifyIcon(NIM_DELETE, &g_nid);
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
         KillTimer(hwnd, 1);
+        if (g_hbrStaticBg) {
+            DeleteObject(g_hbrStaticBg);
+            g_hbrStaticBg = NULL;
+        }
+        if (g_hbrClassBg) {
+            DeleteObject(g_hbrClassBg);
+            g_hbrClassBg = NULL;
+        }
         PostQuitMessage(0);
         break;
     }
 
     default:
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
     return 0;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+    
+    // Enable High DPI Awareness for crisp text and scaling
+    typedef BOOL(WINAPI *SetProcessDpiAwarenessContextProc)(DPI_AWARENESS_CONTEXT);
+    HMODULE hUser32 = GetModuleHandleA("user32.dll");
+    if (hUser32) {
+        SetProcessDpiAwarenessContextProc pSetDpi = (SetProcessDpiAwarenessContextProc)GetProcAddress(hUser32, "SetProcessDpiAwarenessContext");
+        if (pSetDpi) {
+            pSetDpi(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        }
+    }
+
     CoInitialize(NULL);
     InitFonts();
     WSADATA wsaData;
@@ -1258,10 +1400,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     std::thread audioThread(WasapiAudioLoop);
     audioThread.detach();
 
-    WNDCLASSEXA wc = { sizeof(WNDCLASSEXA), CS_CLASSDC, WndProc, 0L, 0L, hInstance, LoadIcon(hInstance, MAKEINTRESOURCE(101)), LoadCursor(NULL, IDC_ARROW), (HBRUSH)CreateSolidBrush(RGB(18, 22, 33)), NULL, "YanichDeskSoundGUIClass", NULL };
-    RegisterClassExA(&wc);
+    g_hbrClassBg = CreateSolidBrush(RGB(18, 22, 33));
 
-    HWND hwnd = CreateWindowExA(0, "YanichDeskSoundGUIClass", "Yanich DeskSound Server", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 590, NULL, NULL, hInstance, NULL);
+    WNDCLASSEXW wc = { sizeof(WNDCLASSEXW), CS_CLASSDC, WndProc, 0L, 0L, hInstance, LoadIcon(hInstance, MAKEINTRESOURCE(101)), LoadCursor(NULL, IDC_ARROW), g_hbrClassBg, NULL, L"YanichDeskSoundGUIClass", NULL };
+    RegisterClassExW(&wc);
+
+    HWND hwnd = CreateWindowExW(0, L"YanichDeskSoundGUIClass", L"Yanich DeskSound Server", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 590, NULL, NULL, hInstance, NULL);
     g_hwndMain = hwnd;
 
     bool startSilent = (strstr(lpCmdLine, "-silent") != NULL || strstr(lpCmdLine, "-service") != NULL);
@@ -1269,9 +1413,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     UpdateWindow(hwnd);
 
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    while (GetMessageW(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        DispatchMessageW(&msg);
     }
 
     g_running = false;

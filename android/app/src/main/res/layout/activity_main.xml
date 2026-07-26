@@ -13,43 +13,74 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <!-- App Header -->
+        <!-- Minimal Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="20dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="DeskSound"
-                android:textColor="@color/text_primary"
-                android:textSize="28sp"
-                android:textStyle="bold" />
+                android:orientation="vertical">
 
-            <TextView
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DeskSound"
+                    android:textColor="@color/text_primary"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvNetworkMode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Detecting Network..."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Status Pill Badge -->
+            <LinearLayout
+                android:id="@+id/layoutStatusBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="WASAPI RECEIVER"
-                android:textColor="@color/accent_cyan"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:background="#1F00E5FF"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#1F2A38"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp">
+
+                <View
+                    android:id="@+id/statusDot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:background="@color/status_disconnected"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/status_disconnected"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Status Card -->
+        <!-- Connection Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/card_bg"
             app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
+            app:cardElevation="0dp"
             app:strokeWidth="1dp"
             app:strokeColor="#2A3042">
 
@@ -57,7 +88,17 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
+
+                <TextView
+                    android:id="@+id/tvHeadphoneRoute"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Audio Route: Detecting..."
+                    android:textColor="@color/accent_cyan"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -65,151 +106,54 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <View
-                        android:id="@+id/statusDot"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
-                        android:background="@color/status_disconnected"
-                        android:layout_marginEnd="10dp" />
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/status_disconnected"
-                        android:textColor="@color/text_primary"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvFormatInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Format: Dynamic Format Negotiation Active"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:id="@+id/tvNetworkMode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="Network: Detecting..."
-                    android:textColor="@color/accent_cyan"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvHeadphoneRoute"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Audio Route: Checking..."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:id="@+id/tvChannelMode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Channel Mode: Detecting..."
-                    android:textColor="@color/accent_cyan"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Server Connection Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="#2A3042">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
+                    <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/title_server_settings"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
+                        android:hint="@string/label_ip"
+                        android:textColorHint="@color/text_secondary"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etServerIp"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="text"
+                            android:text="192.168.1.100"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnScanServer"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="wrap_content"
-                        android:layout_height="38dp"
-                        android:paddingHorizontal="12dp"
-                        android:paddingVertical="0dp"
-                        android:text="🔍 SCAN SERVER"
+                        android:layout_height="56dp"
+                        android:layout_marginStart="8dp"
+                        android:paddingHorizontal="14dp"
+                        android:text="🔍 SCAN"
                         android:textColor="@color/accent_cyan"
                         android:textSize="12sp"
                         android:textStyle="bold"
                         app:strokeColor="@color/accent_cyan"
-                        app:strokeWidth="1dp" />
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="10dp" />
                 </LinearLayout>
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/label_ip"
-                    android:textColorHint="@color/text_secondary"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etServerIp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:text="192.168.1.100"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:hint="@string/label_port"
-                    android:textColorHint="@color/text_secondary"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etServerPort"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:text="5000"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
+                <EditText
+                    android:id="@+id/etServerPort"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone"
+                    android:text="5000" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnConnect"
                     android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="20dp"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="16dp"
                     android:text="@string/btn_connect"
-                    android:textSize="16sp"
+                    android:textSize="15sp"
                     android:textStyle="bold"
                     app:cornerRadius="12dp"
                     app:backgroundTint="@color/accent_cyan"
@@ -217,13 +161,13 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Audio Output & Visualizer Card -->
+        <!-- Audio & Control Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardBackgroundColor="@color/card_bg"
             app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
+            app:cardElevation="0dp"
             app:strokeWidth="1dp"
             app:strokeColor="#2A3042">
 
@@ -231,60 +175,105 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Live Audio Monitor"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Audio Level Visualizer -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/label_visualizer"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <ProgressBar
-                    android:id="@+id/pbAudioLevel"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="12dp"
-                    android:layout_marginTop="6dp"
-                    android:max="100"
-                    android:progress="0"
-                    android:progressDrawable="@android:drawable/progress_horizontal"
-                    android:progressTint="@color/accent_cyan" />
-
-                <!-- Volume Slider -->
+                <!-- Header + Channel Info -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginTop="20dp">
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Live Audio Monitor"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvChannelMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Stereo (L+R)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Audio Meter Bar -->
+                <ProgressBar
+                    android:id="@+id/pbAudioLevel"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="10dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressDrawable="@android:drawable/progress_horizontal"
+                    android:progressTint="@color/accent_cyan" />
+
+                <!-- Volume Row + Presets -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="16dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/label_volume"
+                        android:text="Volume:"
                         android:textColor="@color/text_secondary"
                         android:textSize="13sp" />
 
                     <TextView
                         android:id="@+id/tvVolumeVal"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
                         android:text="100%"
                         android:textColor="@color/accent_cyan"
                         android:textSize="13sp"
                         android:textStyle="bold" />
+
+                    <!-- Quick Preset Buttons -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnVolMute"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="0dp"
+                        android:text="MUTE"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnVol50"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="0dp"
+                        android:text="50%"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnVol100"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="0dp"
+                        android:text="100%"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <com.google.android.material.slider.Slider
@@ -298,19 +287,134 @@
                     app:trackColorActive="@color/accent_cyan"
                     app:trackColorInactive="#2A3042" />
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#2A3042"
+                    android:layout_marginVertical="12dp" />
+
+                <!-- Channel Selector -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Channel Mode Override:"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnChannelAuto"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:padding="0dp"
+                        android:text="AUTO"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="11sp"
+                        app:strokeColor="@color/accent_cyan" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnChannelLeft"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="2dp"
+                        android:padding="0dp"
+                        android:text="LEFT (L)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        app:strokeColor="#2A3042" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnChannelRight"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:padding="0dp"
+                        android:text="RIGHT (R)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        app:strokeColor="#2A3042" />
+                </LinearLayout>
+
+                <!-- Latency Buffer Selector -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Buffer Latency Mode:"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnLatencyLow"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:padding="0dp"
+                        android:text="10ms (USB)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        app:strokeColor="#2A3042" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnLatencyBal"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="2dp"
+                        android:padding="0dp"
+                        android:text="30ms (Wi-Fi)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="11sp"
+                        app:strokeColor="@color/accent_cyan" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnLatencyHigh"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:padding="0dp"
+                        android:text="100ms (Stable)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        app:strokeColor="#2A3042" />
+                </LinearLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Footer Attribution -->
+        <!-- Footer -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="8dp"
             android:gravity="center"
             android:text="Created by Vath Sathya"
             android:textColor="@color/accent_cyan"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
     </LinearLayout>

@@ -43,10 +43,10 @@ echo.
 REM 4. Git Tag & Publish Source Code Release to GitHub
 echo [3/4] Pushing Source Code and Tag to GitHub...
 git add README.md main.cpp resource.rc android/ build_and_publish.bat publish_release.ps1 .gitignore
-git commit -m "Release build v1.0.0: Automated compilation & publication"
-git tag -a v1.0.0 -m "Yanich DeskSound Release v1.0.0" -f
+git commit -m "Release build v1.0.1: Refactored Server & Client GUI with bug fixes"
+git tag -a v1.0.1 -m "Yanich DeskSound Release v1.0.1" -f
 git push origin main --force
-git push origin v1.0.0 --force
+git push origin v1.0.1 --force
 
 REM 5. Create Official GitHub Release & Upload Binary Assets via API
 echo.
@@ -56,10 +56,10 @@ powershell -ExecutionPolicy Bypass -File "%~dp0publish_release.ps1"
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ============================================================
-    echo   🎉 SUCCESS! Yanich DeskSound v1.0.0 Published!
-    echo   - Release Link: https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.0
-    echo   - Server GUI: desksound.exe (318 KB)
-    echo   - Android App: app-release.apk (4.88 MB)
+    echo   🎉 SUCCESS! Yanich DeskSound v1.0.1 Published!
+    echo   - Release Link: https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.1
+    echo   - Server GUI: desksound.exe
+    echo   - Android App: app-release.apk
     echo ============================================================
 ) else (
     echo ⚠️ WARNING: Release API step encountered an issue.

@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -24,6 +26,8 @@ class MainActivity : AppCompatActivity() {
 
     private var audioService: AudioReceiverService? = null
     private var isBound = false
+
+    private var smoothRms = 0.0f
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -45,10 +49,12 @@ class MainActivity : AppCompatActivity() {
                     updateUiState(AudioReceiverService.State.CONNECTING, "Connecting...")
                 } else {
                     updateUiState(AudioReceiverService.State.DISCONNECTED, null)
-                    // INSTANT AUTO-CONNECT ON APP LAUNCH (0 Clicks!)
                     autoScanAndConnectOnStartup()
                 }
                 binding.sliderVolume.value = volume
+                updateVolumeLabel(volume)
+                updateChannelModeButtons(overrideMode)
+                updateLatencyButtons(bufferLatencyMultiplier)
             }
             isBound = true
         }
@@ -100,15 +106,101 @@ class MainActivity : AppCompatActivity() {
             performServerScan()
         }
 
+        // Volume Slider & Quick Presets
         binding.sliderVolume.addOnChangeListener { _: Slider, value: Float, fromUser: Boolean ->
             if (fromUser) {
                 audioService?.volume = value
-                val percent = (value * 100).toInt()
-                binding.tvVolumeVal.text = "$percent%"
+                updateVolumeLabel(value)
             }
         }
 
+        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                binding.sliderVolume.value = 1.0f
+                audioService?.volume = 1.0f
+                updateVolumeLabel(1.0f)
+                Toast.makeText(this@MainActivity, "Volume Reset to 100%", Toast.LENGTH_SHORT).show()
+                return true
+            }
+        })
+        binding.sliderVolume.setOnTouchListener { _, event -> gestureDetector.onTouchEvent(event) }
+
+        binding.btnVolMute.setOnClickListener {
+            binding.sliderVolume.value = 0.0f
+            audioService?.volume = 0.0f
+            updateVolumeLabel(0.0f)
+        }
+        binding.btnVol50.setOnClickListener {
+            binding.sliderVolume.value = 0.5f
+            audioService?.volume = 0.5f
+            updateVolumeLabel(0.5f)
+        }
+        binding.btnVol100.setOnClickListener {
+            binding.sliderVolume.value = 1.0f
+            audioService?.volume = 1.0f
+            updateVolumeLabel(1.0f)
+        }
+
+        // Channel Mode Selectors
+        binding.btnChannelAuto.setOnClickListener { setChannelMode(AudioReceiverService.OverrideMode.AUTO) }
+        binding.btnChannelLeft.setOnClickListener { setChannelMode(AudioReceiverService.OverrideMode.FORCE_LEFT) }
+        binding.btnChannelRight.setOnClickListener { setChannelMode(AudioReceiverService.OverrideMode.FORCE_RIGHT) }
+
+        // Latency Mode Selectors
+        binding.btnLatencyLow.setOnClickListener { setLatencyMode(1) }
+        binding.btnLatencyBal.setOnClickListener { setLatencyMode(2) }
+        binding.btnLatencyHigh.setOnClickListener { setLatencyMode(4) }
+
         updateNetworkAndAudioRouteInfo()
+    }
+
+    private fun updateVolumeLabel(value: Float) {
+        val percent = (value * 100).toInt()
+        binding.tvVolumeVal.text = "$percent%"
+    }
+
+    private fun setChannelMode(mode: AudioReceiverService.OverrideMode) {
+        val service = audioService ?: return
+        service.overrideMode = mode
+        updateChannelModeButtons(mode)
+    }
+
+    private fun updateChannelModeButtons(mode: AudioReceiverService.OverrideMode) {
+        val activeColor = ContextCompat.getColor(this, R.color.accent_cyan)
+        val inactiveColor = ContextCompat.getColor(this, R.color.text_secondary)
+        val activeStroke = ContextCompat.getColor(this, R.color.accent_cyan)
+        val inactiveStroke = android.graphics.Color.parseColor("#2A3042")
+
+        binding.btnChannelAuto.setTextColor(if (mode == AudioReceiverService.OverrideMode.AUTO) activeColor else inactiveColor)
+        binding.btnChannelAuto.strokeColor = android.content.res.ColorStateList.valueOf(if (mode == AudioReceiverService.OverrideMode.AUTO) activeStroke else inactiveStroke)
+
+        binding.btnChannelLeft.setTextColor(if (mode == AudioReceiverService.OverrideMode.FORCE_LEFT) activeColor else inactiveColor)
+        binding.btnChannelLeft.strokeColor = android.content.res.ColorStateList.valueOf(if (mode == AudioReceiverService.OverrideMode.FORCE_LEFT) activeStroke else inactiveStroke)
+
+        binding.btnChannelRight.setTextColor(if (mode == AudioReceiverService.OverrideMode.FORCE_RIGHT) activeColor else inactiveColor)
+        binding.btnChannelRight.strokeColor = android.content.res.ColorStateList.valueOf(if (mode == AudioReceiverService.OverrideMode.FORCE_RIGHT) activeStroke else inactiveStroke)
+    }
+
+    private fun setLatencyMode(multiplier: Int) {
+        val service = audioService ?: return
+        service.bufferLatencyMultiplier = multiplier
+        updateLatencyButtons(multiplier)
+    }
+
+    private fun updateLatencyButtons(multiplier: Int) {
+        val activeColor = ContextCompat.getColor(this, R.color.accent_cyan)
+        val inactiveColor = ContextCompat.getColor(this, R.color.text_secondary)
+        val activeStroke = ContextCompat.getColor(this, R.color.accent_cyan)
+        val inactiveStroke = android.graphics.Color.parseColor("#2A3042")
+
+        binding.btnLatencyLow.setTextColor(if (multiplier == 1) activeColor else inactiveColor)
+        binding.btnLatencyLow.strokeColor = android.content.res.ColorStateList.valueOf(if (multiplier == 1) activeStroke else inactiveStroke)
+
+        binding.btnLatencyBal.setTextColor(if (multiplier == 2) activeColor else inactiveColor)
+        binding.btnLatencyBal.strokeColor = android.content.res.ColorStateList.valueOf(if (multiplier == 2) activeStroke else inactiveStroke)
+
+        binding.btnLatencyHigh.setTextColor(if (multiplier == 4) activeColor else inactiveColor)
+        binding.btnLatencyHigh.strokeColor = android.content.res.ColorStateList.valueOf(if (multiplier == 4) activeStroke else inactiveStroke)
     }
 
     private fun updateNetworkAndAudioRouteInfo() {
@@ -117,24 +209,16 @@ class MainActivity : AppCompatActivity() {
             val activeNetwork = cm.activeNetwork
             val caps = cm.getNetworkCapabilities(activeNetwork)
 
-            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
-            val wifiInfo = wifiManager.connectionInfo
             val localIp = getLocalWifiIpAddress() ?: ""
 
             if (localIp.startsWith("192.168.42.") || localIp.startsWith("192.168.49.") || caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) == true) {
-                binding.tvNetworkMode.text = "🚀 USB Tethering (Zero-Lag ~3ms)"
+                binding.tvNetworkMode.text = "🚀 USB Tethering (~3ms Latency)"
                 binding.tvNetworkMode.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
             } else if (caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                val freq = wifiInfo?.frequency ?: 0
-                if (freq >= 4900) {
-                    binding.tvNetworkMode.text = "📶 5 GHz Wi-Fi (Low Latency ~15ms)"
-                    binding.tvNetworkMode.setTextColor(ContextCompat.getColor(this, R.color.accent_cyan))
-                } else {
-                    binding.tvNetworkMode.text = "⚠️ 2.4 GHz Wi-Fi (~45ms, suggest 5GHz/USB)"
-                    binding.tvNetworkMode.setTextColor(ContextCompat.getColor(this, R.color.status_connecting))
-                }
+                binding.tvNetworkMode.text = "📶 Wi-Fi Network ($localIp)"
+                binding.tvNetworkMode.setTextColor(ContextCompat.getColor(this, R.color.accent_cyan))
             } else {
-                binding.tvNetworkMode.text = "Network: Active ($localIp)"
+                binding.tvNetworkMode.text = "Network Active ($localIp)"
             }
 
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
@@ -154,13 +238,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (hasWired) {
-                binding.tvHeadphoneRoute.text = "🎧 Wired Headphones (0-Lag Direct)"
+                binding.tvHeadphoneRoute.text = "Audio Route: 🎧 Wired Headphones (0-Lag Direct)"
                 binding.tvHeadphoneRoute.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
             } else if (hasBt) {
-                binding.tvHeadphoneRoute.text = "📶 Bluetooth Audio (+150ms Delay)"
+                binding.tvHeadphoneRoute.text = "Audio Route: 📶 Bluetooth Audio (+150ms Delay)"
                 binding.tvHeadphoneRoute.setTextColor(ContextCompat.getColor(this, R.color.status_connecting))
             } else {
-                binding.tvHeadphoneRoute.text = "🔊 Phone Speaker Output"
+                binding.tvHeadphoneRoute.text = "Audio Route: 🔊 Phone Speaker Output"
                 binding.tvHeadphoneRoute.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             }
         } catch (e: Exception) {
@@ -174,7 +258,7 @@ class MainActivity : AppCompatActivity() {
         val portStr = binding.etServerPort.text.toString().trim()
         val port = portStr.toIntOrNull() ?: 5000
 
-        CoroutineScope(Dispatchers.IO).launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             // 1. Fast probe on saved IP (<100ms)
             if (savedIp.isNotEmpty()) {
                 try {
@@ -187,20 +271,20 @@ class MainActivity : AppCompatActivity() {
                     }
                     return@launch
                 } catch (e: Exception) {
-                    // Fast probe failed, fallback to auto-scan
+                    // Fallback to auto-scan
                 }
             }
 
-            // 2. Auto-Scan local Wi-Fi
+            // 2. Auto-Scan local network
             performServerScan(autoConnect = true)
         }
     }
 
     private fun performServerScan(autoConnect: Boolean = false) {
         binding.btnScanServer.isEnabled = false
-        binding.btnScanServer.text = "AUTO-SCANNING..."
+        binding.btnScanServer.text = "SCANNING..."
 
-        CoroutineScope(Dispatchers.IO).launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             var foundIp: String? = null
 
             // Phase 1: Try UDP Discovery Broadcast (Port 5001)
@@ -224,7 +308,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 socket.close()
             } catch (e: Exception) {
-                // UDP broadcast timed out, proceed to subnet scan
+                // UDP broadcast timeout fallback to TCP subnet scan
             }
 
             // Phase 2: Parallel Subnet TCP Scan Fallback (Port 5000)
@@ -254,7 +338,7 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 binding.btnScanServer.isEnabled = true
-                binding.btnScanServer.text = "🔍 SCAN SERVER"
+                binding.btnScanServer.text = "🔍 SCAN"
 
                 val targetIp = foundIp
                 if (targetIp != null) {
@@ -344,9 +428,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateVisualizer(rms: Float) {
-        // RMS for float audio is typically 0.0 to 1.0
-        val valPercent = (rms * 250).coerceIn(0f, 100f).toInt()
-        binding.pbAudioLevel.progress = valPercent
+        val targetVal = (rms * 250).coerceIn(0f, 100f)
+        smoothRms = if (targetVal > smoothRms) targetVal else (smoothRms * 0.8f + targetVal * 0.2f)
+        binding.pbAudioLevel.progress = smoothRms.toInt()
     }
 
     private fun checkNotificationPermission() {
