@@ -358,6 +358,25 @@ bool SendAudioPacketWithTag(SOCKET sock, uint32_t modeTag, const char* pAudioDat
     return true;
 }
 
+inline float ReadSampleAsFloat(const BYTE* pFrame, UINT32 channelIndex, UINT32 bitsPerSample, bool isFloatFormat) {
+    if (isFloatFormat && bitsPerSample == 32) {
+        const float* pFloats = (const float*)pFrame;
+        return pFloats[channelIndex];
+    } else if (bitsPerSample == 16) {
+        const int16_t* pInt16 = (const int16_t*)pFrame;
+        return pInt16[channelIndex] / 32768.0f;
+    } else if (bitsPerSample == 24) {
+        const BYTE* pSample = pFrame + (channelIndex * 3);
+        int32_t val = (int32_t)((pSample[2] << 16) | (pSample[1] << 8) | pSample[0]);
+        if (val & 0x800000) val |= 0xFF000000;
+        return val / 8388608.0f;
+    } else if (bitsPerSample == 32 && !isFloatFormat) {
+        const int32_t* pInt32 = (const int32_t*)pFrame;
+        return pInt32[channelIndex] / 2147483648.0f;
+    }
+    return 0.0f;
+}
+
 // WASAPI Audio Loop with 24/7 Infinite Auto-Recovery Loop
 void WasapiAudioLoop() {
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
@@ -366,6 +385,7 @@ void WasapiAudioLoop() {
 
     static std::vector<float> s_buf1;
     static std::vector<float> s_buf2;
+    static std::vector<float> s_bufStereo;
 
     while (g_running) {
         IMMDeviceEnumerator *pEnumerator = NULL;
@@ -422,7 +442,18 @@ void WasapiAudioLoop() {
                         memset(pData, 0, bytesToRead);
                         g_rmsL.store(0.0f);
                         g_rmsR.store(0.0f);
-                    } else if (g_pwfx->wBitsPerSample == 32 && g_pwfx->nChannels >= 1) {
+                    } else if (g_pwfx && g_pwfx->nChannels >= 1) {
+                        bool isFloatFormat = (g_pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT);
+                        if (g_pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+                            WAVEFORMATEXTENSIBLE* pExt = (WAVEFORMATEXTENSIBLE*)g_pwfx;
+                            if (pExt->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) {
+                                isFloatFormat = true;
+                            }
+                        }
+                        UINT32 bitsPerSample = g_pwfx->wBitsPerSample;
+                        UINT32 chCount = g_pwfx->nChannels;
+                        UINT32 bytesPerFrame = g_pwfx->nBlockAlign;
+
                         float masterLinear = g_isMuted.load() ? 0.0f : (g_masterVolume.load() / 100.0f);
                         float gainLLinear  = g_isMutedL.load() ? 0.0f : (g_gainL.load() / 100.0f);
                         float gainRLinear  = g_isMutedR.load() ? 0.0f : (g_gainR.load() / 100.0f);
@@ -430,29 +461,30 @@ void WasapiAudioLoop() {
                         float volL = masterLinear * gainLLinear;
                         float volR = masterLinear * gainRLinear;
 
-                        float* pFloatData = (float*)pData;
-                        UINT32 chCount = g_pwfx->nChannels;
-
                         UINT32 totalSamples = numFramesAvailable * 2;
                         if (s_buf1.size() < totalSamples) s_buf1.resize(totalSamples);
                         if (s_buf2.size() < totalSamples) s_buf2.resize(totalSamples);
+                        if (s_bufStereo.size() < totalSamples) s_bufStereo.resize(totalSamples);
 
                         float sumL = 0.0f, sumR = 0.0f;
+                        const BYTE* pByteData = (const BYTE*)pData;
 
                         for (UINT32 i = 0; i < numFramesAvailable; ++i) {
-                            float sampleL = 0.0f;
-                            float sampleR = 0.0f;
+                            const BYTE* pFrame = pByteData + (i * bytesPerFrame);
+
+                            float rawL = 0.0f;
+                            float rawR = 0.0f;
 
                             if (chCount == 1) {
-                                sampleL = pFloatData[i];
-                                sampleR = pFloatData[i];
+                                rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
+                                rawR = rawL;
                             } else {
-                                sampleL = pFloatData[i * chCount + 0];
-                                sampleR = pFloatData[i * chCount + 1];
+                                rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
+                                rawR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
                             }
 
-                            sampleL *= volL;
-                            sampleR *= volR;
+                            float sampleL = rawL * volL;
+                            float sampleR = rawR * volR;
 
                             if (sampleL > 1.0f) sampleL = 1.0f; else if (sampleL < -1.0f) sampleL = -1.0f;
                             if (sampleR > 1.0f) sampleR = 1.0f; else if (sampleR < -1.0f) sampleR = -1.0f;
@@ -465,6 +497,9 @@ void WasapiAudioLoop() {
 
                             s_buf2[i * 2 + 0] = sampleR;
                             s_buf2[i * 2 + 1] = sampleR;
+
+                            s_bufStereo[i * 2 + 0] = sampleL;
+                            s_bufStereo[i * 2 + 1] = sampleR;
                         }
                         g_rmsL.store(sqrtf(sumL / numFramesAvailable));
                         g_rmsR.store(sqrtf(sumR / numFramesAvailable));
@@ -474,19 +509,16 @@ void WasapiAudioLoop() {
                     if (g_serverActive.load()) {
                         std::lock_guard<std::mutex> lock(g_clientMutex);
                         size_t clientCount = g_clientSockets.size();
-                        if (clientCount > 0 && g_pwfx->wBitsPerSample == 32) {
+                        if (clientCount > 0) {
+                            int payloadBytes = (int)(numFramesAvailable * 2 * sizeof(float));
+
                             // Send Client 1
                             if (clientCount >= 1) {
                                 ClientChannelMode ch1 = g_client1Channel.load();
-                                bool ok1 = true;
-                                if (ch1 == CLIENT_MODE_STEREO) {
-                                    ok1 = SendAudioPacketWithTag(g_clientSockets[0], MODE_TAG_STEREO, (const char*)pData, bytesToRead);
-                                } else {
-                                    uint32_t tag = (ch1 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : MODE_TAG_RIGHT;
-                                    const char* bufPtr = (ch1 == CLIENT_MODE_LEFT) ? (const char*)s_buf1.data() : (const char*)s_buf2.data();
-                                    ok1 = SendAudioPacketWithTag(g_clientSockets[0], tag, bufPtr, numFramesAvailable * 8);
-                                }
+                                uint32_t tag = (ch1 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : (ch1 == CLIENT_MODE_RIGHT) ? MODE_TAG_RIGHT : MODE_TAG_STEREO;
+                                const char* bufPtr = (ch1 == CLIENT_MODE_LEFT) ? (const char*)s_buf1.data() : (ch1 == CLIENT_MODE_RIGHT) ? (const char*)s_buf2.data() : (const char*)s_bufStereo.data();
 
+                                bool ok1 = SendAudioPacketWithTag(g_clientSockets[0], tag, bufPtr, payloadBytes);
                                 if (!ok1) {
                                     closesocket(g_clientSockets[0]);
                                     g_clientSockets.erase(g_clientSockets.begin());
@@ -501,15 +533,10 @@ void WasapiAudioLoop() {
                             // Send Client 2
                             if (g_clientSockets.size() >= 2) {
                                 ClientChannelMode ch2 = g_client2Channel.load();
-                                bool ok2 = true;
-                                if (ch2 == CLIENT_MODE_STEREO) {
-                                    ok2 = SendAudioPacketWithTag(g_clientSockets[1], MODE_TAG_STEREO, (const char*)pData, bytesToRead);
-                                } else {
-                                    uint32_t tag = (ch2 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : MODE_TAG_RIGHT;
-                                    const char* bufPtr = (ch2 == CLIENT_MODE_LEFT) ? (const char*)s_buf1.data() : (const char*)s_buf2.data();
-                                    ok2 = SendAudioPacketWithTag(g_clientSockets[1], tag, bufPtr, numFramesAvailable * 8);
-                                }
+                                uint32_t tag = (ch2 == CLIENT_MODE_LEFT) ? MODE_TAG_LEFT : (ch2 == CLIENT_MODE_RIGHT) ? MODE_TAG_RIGHT : MODE_TAG_STEREO;
+                                const char* bufPtr = (ch2 == CLIENT_MODE_LEFT) ? (const char*)s_buf1.data() : (ch2 == CLIENT_MODE_RIGHT) ? (const char*)s_buf2.data() : (const char*)s_bufStereo.data();
 
+                                bool ok2 = SendAudioPacketWithTag(g_clientSockets[1], tag, bufPtr, payloadBytes);
                                 if (!ok2) {
                                     closesocket(g_clientSockets[1]);
                                     g_clientSockets.erase(g_clientSockets.begin() + 1);
