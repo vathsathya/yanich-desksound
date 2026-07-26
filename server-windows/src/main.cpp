@@ -1019,16 +1019,14 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
-        std::wstring strP1 = L"DeskSound is a high-performance real-time wireless & USB audio receiver.";
-        std::wstring strP2 = L"It streams low-latency, high-fidelity PC audio to your Android devices.";
-        TextOutW(memDC, 35, 96, strP1.c_str(), (int)strP1.length());
-        TextOutW(memDC, 35, 118, strP2.c_str(), (int)strP2.length());
+        RECT rP1 = { 35, 94, rc.right - 35, 142 };
+        std::wstring strP1 = L"DeskSound is a high-performance, real-time wireless & USB audio receiver that streams low-latency PC audio to Android devices.";
+        DrawTextW(memDC, strP1.c_str(), -1, &rP1, DT_LEFT | DT_WORDBREAK);
 
         SetTextColor(memDC, RGB(140, 155, 180));
-        std::wstring strP3 = L"Ultra-low latency audio (~3ms via USB Tethering / ~15ms via 5GHz Wi-Fi).";
-        std::wstring strP4 = L"Turns your smartphones into stereo speakers for your PC.";
-        TextOutW(memDC, 35, 150, strP3.c_str(), (int)strP3.length());
-        TextOutW(memDC, 35, 170, strP4.c_str(), (int)strP4.length());
+        RECT rP2 = { 35, 145, rc.right - 35, 192 };
+        std::wstring strP2 = L"Ultra-low latency audio (~3ms USB / ~15ms 5GHz Wi-Fi). Turns your Android smartphones into stereo speakers for your PC.";
+        DrawTextW(memDC, strP2.c_str(), -1, &rP2, DT_LEFT | DT_WORDBREAK);
 
         // Card 2: Developer Info
         RECT c2 = { 20, 217, rc.right - 20, 297 };
@@ -1076,8 +1074,10 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         DrawPillButtonW(memDC, btnCheckUpdate, L"CHECK FOR UPDATES", RGB(32, 40, 58), RGB(0, 229, 255));
         DrawPillButtonW(memDC, btnUpdateNow, isUpdAvail ? L"UPDATE NOW" : L"VIEW RELEASES", isUpdAvail ? RGB(0, 229, 255) : RGB(28, 36, 52), isUpdAvail ? RGB(18, 22, 33) : RGB(160, 175, 200));
 
-        // Bottom Close Button
-        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 20, 484 };
+        // Bottom Action Buttons
+        RECT btnViewLogs = { 35, 452, 175, 484 };
+        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 35, 484 };
+        DrawPillButtonW(memDC, btnViewLogs, L"📋 VIEW LOGS", RGB(32, 40, 58), RGB(0, 229, 255));
         DrawPillButtonW(memDC, btnCloseDlg, L"CLOSE", RGB(40, 50, 72), RGB(255, 255, 255));
 
         BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
@@ -1120,7 +1120,13 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
         }
 
-        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 20, 484 };
+        RECT btnViewLogs = { 35, 452, 175, 484 };
+        if (PtInRect(&btnViewLogs, pt)) {
+            ShowLogDialog(hwnd);
+            break;
+        }
+
+        RECT btnCloseDlg = { rc.right - 130, 452, rc.right - 35, 484 };
         if (PtInRect(&btnCloseDlg, pt)) {
             DestroyWindow(hwnd);
             break;
@@ -1336,7 +1342,6 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     RECT btnMuteLeft   = { rcClient.right - 100, 374, rcClient.right - 65, 394 };
     RECT btnMuteRight  = { rcClient.right - 100, 412, rcClient.right - 65, 432 };
 
-    RECT btnLogsFooter = { 300, 464, 365, 488 };
     RECT rFooterText   = { rcClient.right - 105, 468, rcClient.right - 10, 492 };
 
     if (isClick) {
@@ -1344,11 +1349,6 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
         if (PtInRect(&rFooterText, pt)) {
             ShowAboutDialog(hwnd);
-            return;
-        }
-
-        if (PtInRect(&btnLogsFooter, pt)) {
-            ShowLogDialog(hwnd);
             return;
         }
 
@@ -1734,10 +1734,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             RECT rFooterText = { rcClient.right - 115, 486, rcClient.right - 10, 510 };
             if (PtInRect(&rFooterText, pt)) isHand = true;
 
-            // 2. Footer LOGS button & Checkboxes
-            RECT btnLogsFooter = { 318, 486, 388, 510 };
-            if (PtInRect(&btnLogsFooter, pt)) isHand = true;
-            if (pt.y >= 486 && pt.y <= 512 && pt.x >= 18 && pt.x <= 312) isHand = true;
+            // 2. Footer About Developer link & Checkboxes
+            if (pt.y >= 468 && pt.y <= 492 && pt.x >= 18 && pt.x <= 312) isHand = true;
 
             // 3. IP Capsule Badges
             if (pt.y >= 48 && pt.y <= 70 && pt.x >= 95 && pt.x <= 480) isHand = true;
@@ -2162,9 +2160,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         TextOutW(memDC, rcClient.right - 58, 338, strMaster, (int)wcslen(strMaster));
         TextOutW(memDC, rcClient.right - 58, 376, strL, (int)wcslen(strL));
         TextOutW(memDC, rcClient.right - 58, 414, strR, (int)wcslen(strR));
-
-        RECT btnLogsFooter = { 300, 464, 365, 488 };
-        DrawPillButtonW(memDC, btnLogsFooter, L"📋 LOGS", RGB(34, 42, 60), RGB(0, 229, 255));
 
         SelectObject(memDC, g_hFontFooter ? g_hFontFooter : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
