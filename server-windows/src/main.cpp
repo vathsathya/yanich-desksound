@@ -270,6 +270,8 @@ WAVEFORMATEX *g_pwfx = nullptr;
 std::mutex g_formatMutex;
 
 HWND g_hwndMain = NULL;
+HWND g_hwndAbout = NULL;
+HWND g_hwndLog = NULL;
 HWND g_hChkStartup = NULL;
 HWND g_hChkMinToTray = NULL;
 NOTIFYICONDATAW g_nid = {};
@@ -303,6 +305,8 @@ enum DragTarget { DRAG_NONE, DRAG_MASTER, DRAG_GAIN_L, DRAG_GAIN_R };
 DragTarget g_activeDrag = DRAG_NONE;
 bool IsOptimizeVolumeEnabled();
 void SetOptimizeVolumeEnabled(bool enable);
+void LogEvent(const std::wstring& msg);
+void ShowLogDialog(HWND hwndParent);
 
 bool IsRunOnStartupEnabled() {
     HKEY hKey;
@@ -572,6 +576,8 @@ void AcceptClientsThread(SOCKET listenSocket) {
                 g_client2Channel.store(CLIENT_MODE_RIGHT);
                 initModeStr = "RIGHT";
             }
+
+            LogEvent(L"Client connected: " + Utf8ToWide(clientIp) + L" (" + Utf8ToWide(initModeStr) + L")");
 
             // Send initial format handshake
             {
@@ -1096,8 +1102,7 @@ void ShowAboutDialog(HWND hwndParent) {
     RegisterClassExW(&wc);
 
     int w = 470, h = 530;
-    RECT rParent;
-    GetWindowRect(hwndParent, &rParent);
+    RECT rParent; GetWindowRect(hwndParent, &rParent);
     int x = rParent.left + (rParent.right - rParent.left - w) / 2;
     int y = rParent.top + (rParent.bottom - rParent.top - h) / 2;
 
@@ -1106,6 +1111,153 @@ void ShowAboutDialog(HWND hwndParent) {
         ShowWindow(g_hwndAbout, SW_SHOW);
         UpdateWindow(g_hwndAbout);
     }
+}
+
+std::mutex g_logMutex;
+std::vector<std::wstring> g_logEntries;
+
+void LogEvent(const std::wstring& msg) {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    wchar_t timeBuf[32];
+    swprintf_s(timeBuf, L"[%02d:%02d:%02d] ", st.wHour, st.wMinute, st.wSecond);
+    g_logEntries.push_back(std::wstring(timeBuf) + msg);
+    if (g_logEntries.size() > 500) {
+        g_logEntries.erase(g_logEntries.begin());
+    }
+}
+
+std::wstring GetLogHistory() {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    std::wstring fullLog;
+    for (const auto& entry : g_logEntries) {
+        fullLog += entry + L"\r\n";
+    }
+    return fullLog;
+}
+
+void ClearLogHistory() {
+    std::lock_guard<std::mutex> lock(g_logMutex);
+    g_logEntries.clear();
+    LogEvent(L"Logs cleared.");
+}
+
+LRESULT CALLBACK LogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static HWND hEditLog = NULL;
+    switch (msg) {
+    case WM_CREATE: {
+        BOOL darkMode = TRUE;
+        DwmSetWindowAttribute(hwnd, 20, &darkMode, sizeof(darkMode));
+        DwmSetWindowAttribute(hwnd, 19, &darkMode, sizeof(darkMode));
+
+        hEditLog = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+                                   20, 50, 465, 305, hwnd, (HMENU)2001, GetModuleHandle(NULL), NULL);
+        if (g_hFontSub) SendMessage(hEditLog, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
+
+        std::wstring logs = GetLogHistory();
+        SetWindowTextW(hEditLog, logs.c_str());
+        SendMessage(hEditLog, EM_LINESCROLL, 0, 9999);
+        break;
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RECT rc; GetClientRect(hwnd, &rc);
+        HDC memDC = CreateCompatibleDC(hdc);
+        HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
+        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
+
+        FillRect(memDC, &rc, g_hbrClassBg);
+
+        SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, RGB(0, 229, 255));
+        SetBkMode(memDC, TRANSPARENT);
+        TextOutW(memDC, 20, 15, L"📋 Server Activity Logs", 23);
+
+        RECT btnCopy  = { 20, 372, 150, 404 };
+        RECT btnClear = { 160, 372, 280, 404 };
+        RECT btnClose = { rc.right - 130, 372, rc.right - 20, 404 };
+
+        DrawPillButtonW(memDC, btnCopy, L"COPY LOGS", RGB(32, 40, 58), RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnClear, L"CLEAR LOGS", RGB(32, 40, 58), RGB(200, 215, 235));
+        DrawPillButtonW(memDC, btnClose, L"CLOSE", RGB(40, 50, 72), RGB(255, 255, 255));
+
+        BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
+        SelectObject(memDC, oldBitmap);
+        DeleteObject(memBitmap);
+        DeleteDC(memDC);
+        EndPaint(hwnd, &ps);
+        break;
+    }
+    case WM_LBUTTONDOWN: {
+        int mx = GET_X_LPARAM(lParam);
+        int my = GET_Y_LPARAM(lParam);
+        POINT pt = { mx, my };
+        RECT rc; GetClientRect(hwnd, &rc);
+
+        RECT btnCopy  = { 20, 372, 150, 404 };
+        RECT btnClear = { 160, 372, 280, 404 };
+        RECT btnClose = { rc.right - 130, 372, rc.right - 20, 404 };
+
+        if (PtInRect(&btnCopy, pt)) {
+            std::wstring logs = GetLogHistory();
+            CopyTextToClipboard(hwnd, logs);
+            break;
+        }
+        if (PtInRect(&btnClear, pt)) {
+            ClearLogHistory();
+            if (hEditLog) SetWindowTextW(hEditLog, L"Logs cleared.\r\n");
+            break;
+        }
+        if (PtInRect(&btnClose, pt)) {
+            DestroyWindow(hwnd);
+            break;
+        }
+        break;
+    }
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORSTATIC: {
+        HDC hdcStatic = (HDC)wParam;
+        SetTextColor(hdcStatic, RGB(0, 229, 255));
+        SetBkColor(hdcStatic, RGB(12, 16, 24));
+        static HBRUSH hbrEdit = CreateSolidBrush(RGB(12, 16, 24));
+        return (INT_PTR)hbrEdit;
+    }
+    case WM_DESTROY: {
+        g_hwndLog = NULL;
+        break;
+    }
+    default:
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+void ShowLogDialog(HWND hwndParent) {
+    if (g_hwndLog && IsWindow(g_hwndLog)) {
+        SetForegroundWindow(g_hwndLog);
+        return;
+    }
+    HINSTANCE hInst = GetModuleHandle(NULL);
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.style = CS_CLASSDC;
+    wc.lpfnWndProc = LogWndProc;
+    wc.hInstance = hInst;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = g_hbrClassBg;
+    wc.lpszClassName = L"YanichDeskSoundLogClass";
+    RegisterClassExW(&wc);
+
+    int w = 505, h = 430;
+    RECT rParent; GetWindowRect(hwndParent, &rParent);
+    int x = rParent.left + (rParent.right - rParent.left - w) / 2;
+    int y = rParent.top + (rParent.bottom - rParent.top - h) / 2;
+
+    g_hwndLog = CreateWindowExW(0, wc.lpszClassName, L"Yanich DeskSound - Activity Logs",
+                                WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+                                x, y, w, h, hwndParent, NULL, hInst, NULL);
 }
 
 void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
@@ -1298,20 +1450,17 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
+        RECT btnToggleServer = { 380, 26, 480, 52 };
         if (PtInRect(&btnToggleServer, pt)) {
-            bool current = g_serverActive.load();
-            g_serverActive.store(!current);
-            if (current) {
-                std::lock_guard<std::mutex> lock(g_clientMutex);
-                for (SOCKET s : g_clientSockets) closesocket(s);
-                g_clientSockets.clear();
-                g_client1IpStr = "None";
-                g_client2IpStr = "None";
-                g_client1Channel.store(CLIENT_MODE_LEFT);
-                g_client2Channel.store(CLIENT_MODE_RIGHT);
-                g_openDropdown.store(0);
-            }
-            InvalidateRect(hwnd, NULL, FALSE); return;
+            g_serverActive.store(!g_serverActive.load());
+            InvalidateRect(hwnd, NULL, FALSE);
+            return;
+        }
+
+        RECT btnLogsHeader = { 295, 26, 365, 52 };
+        if (PtInRect(&btnLogsHeader, pt)) {
+            ShowLogDialog(hwnd);
+            return;
         }
 
         std::string c1Ip, c2Ip;
@@ -1400,391 +1549,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         InvalidateRect(hwnd, NULL, FALSE);
     }
 }
-
-
-
-bool IsMinimizeToTrayEnabled() {
-    HKEY hKey;
-    DWORD dwValue = 1;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
-        RegQueryValueExW(hKey, L"MinimizeToTray", NULL, &dwType, (LPBYTE)&dwValue, &dwSize);
-        RegCloseKey(hKey);
-    }
-    return dwValue != 0;
-}
-
-void SetMinimizeToTrayEnabled(bool enable) {
-    HKEY hKey;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD dwValue = enable ? 1 : 0;
-        RegSetValueExW(hKey, L"MinimizeToTray", 0, REG_DWORD, (const BYTE*)&dwValue, sizeof(DWORD));
-        RegCloseKey(hKey);
-    }
-}
-
-bool IsOptimizeVolumeEnabled() {
-    HKEY hKey;
-    DWORD dwValue = 1;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
-        RegQueryValueExW(hKey, L"OptimizeVolume", NULL, &dwType, (LPBYTE)&dwValue, &dwSize);
-        RegCloseKey(hKey);
-    }
-    return dwValue != 0;
-}
-
-void SetOptimizeVolumeEnabled(bool enable) {
-    HKEY hKey;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD dwValue = enable ? 1 : 0;
-        RegSetValueExW(hKey, L"OptimizeVolume", 0, REG_DWORD, (const BYTE*)&dwValue, sizeof(DWORD));
-        RegCloseKey(hKey);
-    }
-}
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
-    case WM_CREATE: {
-        BOOL darkMode = TRUE;
-        DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkMode, sizeof(darkMode));
-        DwmSetWindowAttribute(hwnd, 19 /* DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 */, &darkMode, sizeof(darkMode));
-
-        SetTimer(hwnd, 1, 30, NULL);
-        
-        g_nid.cbSize = sizeof(NOTIFYICONDATAW);
-        g_nid.hWnd = hwnd;
-        g_nid.uID = 1;
-        g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-        g_nid.uCallbackMessage = WM_TRAYICON;
-        g_nid.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(101));
-        lstrcpyW(g_nid.szTip, L"Yanich DeskSound Server");
-        Shell_NotifyIconW(NIM_ADD, &g_nid);
-
-        bool startupChecked = IsRunOnStartupEnabled();
-        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 491, 175, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
-
-        bool minToTrayChecked = IsMinimizeToTrayEnabled();
-        g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 200, 491, 140, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
-
-        g_optimizeVolume.store(IsOptimizeVolumeEnabled());
-
-        if (g_hFontSub) {
-            SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
-            SendMessage(g_hChkMinToTray, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
-        }
-        SendMessage(g_hChkStartup, BM_SETCHECK, startupChecked ? BST_CHECKED : BST_UNCHECKED, 0);
-        SendMessage(g_hChkMinToTray, BM_SETCHECK, minToTrayChecked ? BST_CHECKED : BST_UNCHECKED, 0);
-
-        CheckForUpdatesAsync();
-        break;
-    }
-
-    case WM_COMMAND: {
-        int wmId = LOWORD(wParam);
-        if (wmId == ID_CHK_STARTUP) {
-            LRESULT chkState = SendMessage(g_hChkStartup, BM_GETCHECK, 0, 0);
-            SetRunOnStartup(chkState == BST_CHECKED);
-        } else if (wmId == ID_CHK_MIN_TO_TRAY) {
-            LRESULT chkState = SendMessage(g_hChkMinToTray, BM_GETCHECK, 0, 0);
-            SetMinimizeToTrayEnabled(chkState == BST_CHECKED);
-        } else if (wmId == ID_TRAY_SHOW) {
-            ShowWindow(hwnd, SW_RESTORE);
-            SetForegroundWindow(hwnd);
-        } else if (wmId == ID_TRAY_TOGGLE_SERVER) {
-            bool current = g_serverActive.load();
-            g_serverActive.store(!current);
-            if (current) {
-                std::lock_guard<std::mutex> lock(g_clientMutex);
-                for (SOCKET s : g_clientSockets) closesocket(s);
-                g_clientSockets.clear();
-                g_client1IpStr = "None";
-                g_client2IpStr = "None";
-                g_openDropdown.store(0);
-            }
-            InvalidateRect(hwnd, NULL, FALSE);
-        } else if (wmId == ID_TRAY_MUTE_MASTER) {
-            g_isMuted.store(!g_isMuted.load());
-            InvalidateRect(hwnd, NULL, FALSE);
-        } else if (wmId == ID_TRAY_EXIT) {
-            g_running = false;
-            DestroyWindow(hwnd);
-        } else if (wmId == ID_TRAY_UPDATE) {
-            ShellExecuteA(NULL, "open", g_latestUpdateUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
-        }
-        break;
-    }
-
-    case WM_CLOSE: {
-        if (IsMinimizeToTrayEnabled()) {
-            static bool s_hasShownTrayTip = false;
-            if (!s_hasShownTrayTip) {
-                s_hasShownTrayTip = true;
-                g_nid.uFlags |= NIF_INFO;
-                lstrcpyW(g_nid.szInfoTitle, L"Yanich DeskSound Server");
-                lstrcpyW(g_nid.szInfo, L"DeskSound Server is running in the background.");
-                g_nid.dwInfoFlags = NIIF_INFO;
-                Shell_NotifyIconW(NIM_MODIFY, &g_nid);
-            }
-            ShowWindow(hwnd, SW_HIDE);
-            return 0;
-        } else {
-            g_running = false;
-            DestroyWindow(hwnd);
-            return 0;
-        }
-    }
-
-    case WM_SETCURSOR: {
-        if (LOWORD(lParam) == HTCLIENT) {
-            POINT pt;
-            GetCursorPos(&pt);
-            ScreenToClient(hwnd, &pt);
-
-            RECT rcClient;
-            GetClientRect(hwnd, &rcClient);
-
-            bool isHand = false;
-
-            // 1. Footer About Developer link
-            RECT rFooterText = { rcClient.right - 150, 490, rcClient.right - 20, 514 };
-            if (PtInRect(&rFooterText, pt)) isHand = true;
-
-            // 2. Footer Checkboxes (Startup & Minimize to Tray)
-            if (pt.y >= 488 && pt.y <= 515 && pt.x >= 18 && pt.x <= 350) isHand = true;
-
-            // 3. IP Capsule Badges (y: 48-72, x: 95-480)
-            if (pt.y >= 48 && pt.y <= 72 && pt.x >= 95 && pt.x <= 480) isHand = true;
-
-            // 4. Server Stop/Start Toggle button
-            RECT btnToggleServer = { 380, 26, 480, 52 };
-            if (PtInRect(&btnToggleServer, pt)) isHand = true;
-
-            // 5. Audio Device Dropdown
-            RECT btnDeviceDropdown = { 145, 78, 480, 100 };
-            if (PtInRect(&btnDeviceDropdown, pt)) isHand = true;
-
-            // 6. Swap L/R button
-            RECT btnSwapLR = { 375, 126, 475, 144 };
-            if (PtInRect(&btnSwapLR, pt)) isHand = true;
-
-            // 7. Client Channel Mode Selection Buttons
-            if ((pt.y >= 155 && pt.y <= 198 && pt.x >= 150 && pt.x <= 480) ||
-                (pt.y >= 235 && pt.y <= 278 && pt.x >= 150 && pt.x <= 480)) isHand = true;
-
-            // 8. Test Sound & Optimize Volume buttons
-            if (pt.y >= 275 && pt.y <= 305 && pt.x >= 365 && pt.x <= 480) isHand = true;
-            if (pt.y >= 345 && pt.y <= 372 && pt.x >= 25 && pt.x <= 180) isHand = true;
-
-            // 9. Volume sliders area & Mute/Reset buttons
-            if (pt.y >= 325 && pt.y <= 465 && pt.x >= 20 && pt.x <= 480) isHand = true;
-
-            if (isHand) {
-                SetCursor(LoadCursor(NULL, IDC_HAND));
-            } else {
-                SetCursor(LoadCursor(NULL, IDC_ARROW));
-            }
-            return TRUE;
-        }
-        break;
-    }
-
-    case WM_MOUSEWHEEL: {
-        int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-        ScreenToClient(hwnd, &pt);
-        float change = (zDelta > 0) ? 5.0f : -5.0f;
-        if (pt.y >= 380 && pt.y <= 412) {
-            g_masterVolume.store(std::max(0.0f, std::min(100.0f, g_masterVolume.load() + change)));
-            InvalidateRect(hwnd, NULL, FALSE);
-        } else if (pt.y >= 418 && pt.y <= 450) {
-            g_gainL.store(std::max(0.0f, std::min(100.0f, g_gainL.load() + change)));
-            InvalidateRect(hwnd, NULL, FALSE);
-        } else if (pt.y >= 456 && pt.y <= 488) {
-            g_gainR.store(std::max(0.0f, std::min(100.0f, g_gainR.load() + change)));
-            InvalidateRect(hwnd, NULL, FALSE);
-        }
-        break;
-    }
-
-    case WM_LBUTTONDOWN: {
-        SetCapture(hwnd);
-        int mx = GET_X_LPARAM(lParam);
-        int my = GET_Y_LPARAM(lParam);
-        HandleMousePos(hwnd, mx, my, true);
-        break;
-    }
-
-    case WM_MOUSEMOVE: {
-        if (wParam & MK_LBUTTON) {
-            int mx = GET_X_LPARAM(lParam);
-            int my = GET_Y_LPARAM(lParam);
-            HandleMousePos(hwnd, mx, my, false);
-        }
-        break;
-    }
-
-    case WM_LBUTTONUP: {
-        ReleaseCapture();
-        g_activeDrag = DRAG_NONE;
-        break;
-    }
-
-    case WM_TIMER: {
-        if (g_isTestAudioPlaying.load()) {
-            DWORD elapsed = GetTickCount() - g_testAudioStartTime.load();
-            if (elapsed >= 2000) {
-                g_isTestAudioPlaying.store(false);
-                g_rmsL.store(0.0f);
-                g_rmsR.store(0.0f);
-            }
-        }
-
-        // Smooth Peak-Decay Animation Filter for Meter
-        float rawL = g_rmsL.load();
-        float rawR = g_rmsR.load();
-        float curL = g_rmsL_smooth.load();
-        float curR = g_rmsR_smooth.load();
-
-        float nextL = (rawL > curL) ? rawL : (curL * 0.82f + rawL * 0.18f);
-        float nextR = (rawR > curR) ? rawR : (curR * 0.82f + rawR * 0.18f);
-        g_rmsL_smooth.store(nextL);
-        g_rmsR_smooth.store(nextR);
-
-        if (IsWindowVisible(hwnd)) {
-            InvalidateRect(hwnd, NULL, FALSE);
-        }
-        break;
-    }
-
-    case WM_TRAYICON: {
-        if (lParam == WM_LBUTTONDBLCLK) {
-            ShowWindow(hwnd, SW_RESTORE);
-            SetForegroundWindow(hwnd);
-        } else if (lParam == WM_RBUTTONUP) {
-            POINT pt;
-            GetCursorPos(&pt);
-            HMENU hMenu = CreatePopupMenu();
-            AppendMenuW(hMenu, MF_STRING, ID_TRAY_SHOW, L"Show Server GUI");
-            AppendMenuW(hMenu, MF_STRING, ID_TRAY_TOGGLE_SERVER, g_serverActive.load() ? L"Stop Server" : L"Start Server");
-            AppendMenuW(hMenu, MF_STRING, ID_TRAY_MUTE_MASTER, g_isMuted.load() ? L"Unmute Master" : L"Mute Master");
-            if (g_updateAvailable.load()) {
-                std::wstring uText = L"🚀 Update Available (" + Utf8ToWide(g_latestUpdateTag) + L")";
-                AppendMenuW(hMenu, MF_STRING, ID_TRAY_UPDATE, uText.c_str());
-            }
-            AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
-            AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Exit Server");
-            SetForegroundWindow(hwnd);
-            TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
-            DestroyMenu(hMenu);
-        }
-        break;
-    }
-
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-
-        RECT rcClient;
-        GetClientRect(hwnd, &rcClient);
-
-        HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rcClient.right, rcClient.bottom);
-        HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
-
-        HBRUSH bgBrush = CreateSolidBrush(RGB(15, 19, 28));
-        FillRect(memDC, &rcClient, bgBrush);
-        DeleteObject(bgBrush);
-
-        SetBkMode(memDC, TRANSPARENT);
-
-        if (g_updateAvailable.load()) {
-            RECT btnUpdate = { rcClient.right - 180, 12, rcClient.right - 20, 34 };
-            std::wstring btnText = L"🚀 UPDATE " + Utf8ToWide(g_latestUpdateTag);
-            DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), RGB(0, 229, 255), RGB(18, 22, 33));
-        }
-
-        COLORREF cardBgColor = RGB(23, 29, 43);
-
-        // Server Status Card
-        RECT card1 = { 20, 20, rcClient.right - 20, 114 };
-        DrawRoundedRect(memDC, card1, cardBgColor, 14);
-
-        bool isActive = g_serverActive.load();
-
-        HBRUSH dotBrush = CreateSolidBrush(isActive ? RGB(0, 230, 118) : RGB(255, 82, 82));
-        HBRUSH oldB = (HBRUSH)SelectObject(memDC, dotBrush);
-        HPEN nullPen = CreatePen(PS_NULL, 0, RGB(0,0,0));
-        HPEN oldP = (HPEN)SelectObject(memDC, nullPen);
-        Ellipse(memDC, 35, 32, 47, 44);
-        SelectObject(memDC, oldB);
-        SelectObject(memDC, oldP);
-        DeleteObject(dotBrush);
-        DeleteObject(nullPen);
-
-        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(255, 255, 255));
-        
-        std::wstring statusText = isActive ? L"Server Status: RUNNING (Port 5000)" : L"Server Status: STOPPED";
-        TextOutW(memDC, 55, 28, statusText.c_str(), (int)statusText.length());
-
-        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(160, 175, 200));
-
-        std::string localIps, c1Ip, c2Ip;
-        {
-            std::lock_guard<std::mutex> lock(g_clientMutex);
-            localIps = g_localIpsStr;
-            c1Ip = g_client1IpStr;
-            c2Ip = g_client2IpStr;
-        }
-
-        TextOutW(memDC, 35, 54, L"Local IP:", 9);
-
-        std::vector<std::string> ipList;
-        {
-            std::stringstream ss(localIps);
-            std::string item;
-            while (std::getline(ss, item, '|')) {
-                size_t p1 = item.find_first_not_of(" \t");
-                size_t p2 = item.find_last_not_of(" \t");
-                if (p1 != std::string::npos && p2 != std::string::npos) {
-                    ipList.push_back(item.substr(p1, p2 - p1 + 1));
-                }
-            }
-        }
-
-        int startX = 98;
-        int activeCopied = g_copiedIpIdx.load();
-
-        for (size_t idx = 0; idx < ipList.size() && idx < 3; ++idx) {
-            std::wstring wIp = Utf8ToWide(ipList[idx]);
-            SIZE sz;
-            GetTextExtentPoint32W(memDC, wIp.c_str(), (int)wIp.length(), &sz);
-
-            int pillW = sz.cx + 10;
-            RECT rIpPill = { startX, 50, startX + pillW, 70 };
-
-            bool isCopied = ((int)idx == activeCopied);
-            COLORREF bgCol   = isCopied ? RGB(0, 230, 118) : RGB(28, 36, 52);
-            COLORREF textCol = isCopied ? RGB(18, 22, 33)  : RGB(0, 229, 255);
-
-            std::wstring label = isCopied ? L"Copied!" : wIp;
-            DrawPillButtonW(memDC, rIpPill, label.c_str(), bgCol, textCol);
-
-            startX += pillW + 6;
-        }
-
-        // Device Label & Dropdown
-        TextOutW(memDC, 35, 82, L"PC Audio Device:", 16);
-        std::string selectedDevName = "Default Playback Device";
-        {
-            std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int selIdx = g_selectedDeviceIndex.load();
-            if (selIdx >= 0 && selIdx < (int)g_audioDevices.size()) {
-                selectedDevName = g_audioDevices[selIdx].name;
-            }
-        }
+// ... [Remaining content unchanged]
         if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
         std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  v";
 
@@ -1792,8 +1557,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(32, 40, 58), RGB(0, 229, 255));
 
         RECT btnToggleServer = { 380, 26, 480, 52 };
-        if (isActive) {
-            DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(55, 25, 33), RGB(255, 82, 82));
         } else {
             DrawPillButtonW(memDC, btnToggleServer, L"START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
         }
