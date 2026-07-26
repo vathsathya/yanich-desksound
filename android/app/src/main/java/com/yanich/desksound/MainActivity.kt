@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
                     updateUiState(AudioReceiverService.State.CONNECTING, "Connecting...")
                 } else {
                     updateUiState(AudioReceiverService.State.DISCONNECTED, null)
-                    autoScanAndConnectOnStartup()
+                    checkForUpdates { autoScanAndConnectOnStartup() }
                 }
                 binding.sliderVolume.value = volume
                 updateVolumeLabel(volume)
@@ -450,5 +450,129 @@ class MainActivity : AppCompatActivity() {
     private fun savePrefs(ip: String, port: Int) {
         val prefs = getSharedPreferences("desksound_prefs", MODE_PRIVATE)
         prefs.edit().putString("ip", ip).putInt("port", port).apply()
+    }
+
+    private var hasCheckedUpdate = false
+
+    private fun checkForUpdates(onComplete: () -> Unit) {
+        if (hasCheckedUpdate) {
+            onComplete()
+            return
+        }
+        hasCheckedUpdate = true
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var latestTag: String? = null
+            var downloadUrl: String? = null
+            var releaseUrl: String?
+            var releaseBody: String? = null
+
+            try {
+                val url = java.net.URL("https://api.github.com/repos/vathsathya/yanich-desksound/releases/latest")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.setRequestProperty("User-Agent", "YanichDeskSound-Android")
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+
+                if (conn.responseCode == 200) {
+                    val stream = conn.inputStream
+                    val jsonStr = stream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(jsonStr)
+
+                    latestTag = json.optString("tag_name", "")
+                    releaseUrl = json.optString("html_url", "https://github.com/vathsathya/yanich-desksound/releases")
+                    releaseBody = json.optString("body", "")
+
+                    val assets = json.optJSONArray("assets")
+                    if (assets != null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk")) {
+                                downloadUrl = asset.optString("browser_download_url", releaseUrl ?: "")
+                                break
+                            }
+                        }
+                    }
+                    if (downloadUrl == null) {
+                        downloadUrl = releaseUrl
+                    }
+                }
+            } catch (e: Exception) {
+                // Network unavailable or release fetch failed
+            }
+
+            val currentVersion = try {
+                packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.1"
+            } catch (e: Exception) {
+                "1.0.1"
+            }
+            val isNewer = latestTag != null && isVersionNewer(latestTag, currentVersion)
+
+            withContext(Dispatchers.Main) {
+                if (isNewer && latestTag != null && downloadUrl != null) {
+                    showUpdateAvailable(latestTag, downloadUrl, releaseBody, currentVersion, onComplete)
+                } else {
+                    onComplete()
+                }
+            }
+        }
+    }
+
+    private fun isVersionNewer(latestTag: String, currentVersion: String): Boolean {
+        val cleanTag = latestTag.trimStart('v', 'V').trim()
+        val cleanCurrent = currentVersion.trimStart('v', 'V').trim()
+
+        val tagParts = cleanTag.split(".").mapNotNull { it.toIntOrNull() }
+        val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
+
+        for (i in 0 until maxOf(tagParts.size, currentParts.size)) {
+            val tagVal = tagParts.getOrElse(i) { 0 }
+            val curVal = currentParts.getOrElse(i) { 0 }
+            if (tagVal > curVal) return true
+            if (tagVal < curVal) return false
+        }
+        return false
+    }
+
+    private fun showUpdateAvailable(latestTag: String, downloadUrl: String, body: String?, currentVersion: String, onComplete: () -> Unit) {
+        // 1. Show Top Banner in UI
+        binding.layoutUpdateBanner.visibility = android.view.View.VISIBLE
+        binding.tvUpdateTitle.text = "🚀 New Update Available: $latestTag!"
+        binding.tvUpdateDesc.text = "Click UPDATE to download latest APK"
+        binding.btnUpdateNow.setOnClickListener {
+            openUrlInBrowser(downloadUrl)
+        }
+
+        // 2. Show Material 3 Dialog on startup
+        val messageText = if (!body.isNullOrBlank()) {
+            "A new version of Yanich DeskSound ($latestTag) is available.\n\nRelease Notes:\n$body\n\nCurrent version: v$currentVersion\n\nWould you like to update now?"
+        } else {
+            "A new version of Yanich DeskSound ($latestTag) is available.\n\nCurrent version: v$currentVersion\n\nWould you like to update now?"
+        }
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("🚀 Update Available ($latestTag)")
+            .setMessage(messageText)
+            .setPositiveButton("UPDATE NOW") { _, _ ->
+                openUrlInBrowser(downloadUrl)
+                onComplete()
+            }
+            .setNegativeButton("LATER") { dialog, _ ->
+                dialog.dismiss()
+                onComplete()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun openUrlInBrowser(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open link: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }

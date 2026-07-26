@@ -18,6 +18,8 @@
 #include <audioclient.h>
 #include <timeapi.h>
 #include <functiondiscoverykeys_devpkey.h>
+#include <winhttp.h>
+#include <dwmapi.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Ole32.lib")
@@ -27,6 +29,8 @@
 #pragma comment(lib, "User32.lib")
 #pragma comment(lib, "Gdi32.lib")
 #pragma comment(lib, "Advapi32.lib")
+#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "dwmapi.lib")
 
 #define PORT 5000
 #define DISCOVERY_PORT 5001
@@ -38,12 +42,82 @@
 #define ID_TRAY_TOGGLE_SERVER 2002
 #define ID_TRAY_MUTE_MASTER 2003
 #define ID_TRAY_EXIT 2004
+#define ID_TRAY_UPDATE 2005
 
 // Per-Client Channel Mode Enum
 enum ClientChannelMode { CLIENT_MODE_STEREO = 0, CLIENT_MODE_LEFT = 1, CLIENT_MODE_RIGHT = 2 };
 std::atomic<ClientChannelMode> g_client1Channel{CLIENT_MODE_LEFT};
 std::atomic<ClientChannelMode> g_client2Channel{CLIENT_MODE_RIGHT};
 std::atomic<int> g_openDropdown{0}; // 0 = closed, 1 = Client 1 menu open, 2 = Client 2 menu open, 3 = PC Audio Device menu open
+
+std::atomic<bool> g_updateAvailable{false};
+std::string g_latestUpdateTag = "";
+std::string g_latestUpdateUrl = "https://github.com/vathsathya/yanich-desksound/releases/latest";
+extern HWND g_hwndMain;
+
+void CheckForUpdatesAsync() {
+    std::thread([]() {
+        HINTERNET hSession = WinHttpOpen(L"YanichDeskSound-Server/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!hSession) return;
+
+        HINTERNET hConnect = WinHttpConnect(hSession, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
+        if (!hConnect) {
+            WinHttpCloseHandle(hSession);
+            return;
+        }
+
+        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", L"/repos/vathsathya/yanich-desksound/releases/latest", NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+        if (!hRequest) {
+            WinHttpCloseHandle(hConnect);
+            WinHttpCloseHandle(hSession);
+            return;
+        }
+
+        const wchar_t* headers = L"User-Agent: YanichDeskSound-Server\r\nAccept: application/vnd.github+json\r\n";
+        WinHttpAddRequestHeaders(hRequest, headers, (DWORD)-1L, WINHTTP_ADDREQ_FLAG_ADD);
+
+        if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+            WinHttpReceiveResponse(hRequest, NULL)) {
+            DWORD dwStatusCode = 0;
+            DWORD dwSize = sizeof(dwStatusCode);
+            WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &dwStatusCode, &dwSize, WINHTTP_NO_HEADER_INDEX);
+
+            if (dwStatusCode == 200) {
+                std::string responseStr;
+                DWORD dwDownloaded = 0;
+                do {
+                    char buf[1024];
+                    dwSize = sizeof(buf);
+                    if (WinHttpReadData(hRequest, buf, dwSize, &dwDownloaded) && dwDownloaded > 0) {
+                        responseStr.append(buf, dwDownloaded);
+                    }
+                } while (dwDownloaded > 0);
+
+                size_t tagPos = responseStr.find("\"tag_name\":");
+                if (tagPos != std::string::npos) {
+                    size_t start = responseStr.find("\"", tagPos + 11);
+                    if (start != std::string::npos) {
+                        size_t end = responseStr.find("\"", start + 1);
+                        if (end != std::string::npos) {
+                            std::string tag = responseStr.substr(start + 1, end - start - 1);
+                            if (tag != "v1.0.2" && tag != "1.0.2" && !tag.empty()) {
+                                g_latestUpdateTag = tag;
+                                g_updateAvailable.store(true);
+                                if (g_hwndMain) {
+                                    InvalidateRect(g_hwndMain, NULL, FALSE);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+    }).detach();
+}
 
 template <class T> void SafeRelease(T **ppT) {
     if (*ppT) {
@@ -681,6 +755,14 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     if (isClick) {
         POINT pt = { mx, my };
 
+        if (g_updateAvailable.load()) {
+            RECT btnUpdate = { 268, 18, 480, 40 };
+            if (PtInRect(&btnUpdate, pt)) {
+                ShellExecuteA(NULL, "open", g_latestUpdateUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
+                return;
+            }
+        }
+
         // Handle open dropdown selection first
         int openMenu = g_openDropdown.load();
         if (openMenu == 1) {
@@ -876,6 +958,10 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE: {
+        BOOL darkMode = TRUE;
+        DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &darkMode, sizeof(darkMode));
+        DwmSetWindowAttribute(hwnd, 19 /* DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 */, &darkMode, sizeof(darkMode));
+
         SetTimer(hwnd, 1, 30, NULL);
         
         g_nid.cbSize = sizeof(NOTIFYICONDATAW);
@@ -894,6 +980,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
         }
         SendMessage(g_hChkStartup, BM_SETCHECK, startupChecked ? BST_CHECKED : BST_UNCHECKED, 0);
+
+        CheckForUpdatesAsync();
         break;
     }
 
@@ -923,6 +1011,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         } else if (wmId == ID_TRAY_EXIT) {
             g_running = false;
             DestroyWindow(hwnd);
+        } else if (wmId == ID_TRAY_UPDATE) {
+            ShellExecuteA(NULL, "open", g_latestUpdateUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
         }
         break;
     }
@@ -1011,6 +1101,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             AppendMenuW(hMenu, MF_STRING, ID_TRAY_SHOW, L"Show Server GUI");
             AppendMenuW(hMenu, MF_STRING, ID_TRAY_TOGGLE_SERVER, g_serverActive.load() ? L"Stop Server" : L"Start Server");
             AppendMenuW(hMenu, MF_STRING, ID_TRAY_MUTE_MASTER, g_isMuted.load() ? L"Unmute Master" : L"Mute Master");
+            if (g_updateAvailable.load()) {
+                std::wstring uText = L"🚀 Update Available (" + Utf8ToWide(g_latestUpdateTag) + L")";
+                AppendMenuW(hMenu, MF_STRING, ID_TRAY_UPDATE, uText.c_str());
+            }
             AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
             AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Exit Server");
             SetForegroundWindow(hwnd);
@@ -1031,7 +1125,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rcClient.right, rcClient.bottom);
         HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
-        HBRUSH bgBrush = CreateSolidBrush(RGB(18, 22, 33));
+        HBRUSH bgBrush = CreateSolidBrush(RGB(15, 19, 28));
         FillRect(memDC, &rcClient, bgBrush);
         DeleteObject(bgBrush);
 
@@ -1039,12 +1133,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         HFONT oldFont = (HFONT)SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 20, 20, L"Yanich DeskSound Server", 23);
+        TextOutW(memDC, 20, 20, L"Yanich DeskSound", 16);
+
+        // Version Pill Badge (Inline next to title)
+        RECT rVerBadge = { 200, 18, 258, 40 };
+        DrawPillButtonW(memDC, rVerBadge, L"v1.0.2", RGB(28, 36, 52), RGB(0, 229, 255));
+
+        if (g_updateAvailable.load()) {
+            RECT btnUpdate = { 268, 18, 480, 40 };
+            std::wstring btnText = L"🚀 UPDATE " + Utf8ToWide(g_latestUpdateTag);
+            DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), RGB(0, 229, 255), RGB(18, 22, 33));
+        }
+
+        COLORREF cardBgColor = RGB(23, 29, 43);
 
         // Server Status Card
-        HBRUSH cardBrush = CreateSolidBrush(RGB(28, 34, 48));
-        RECT card1 = { 20, 60, rcClient.right - 20, 142 };
-        FillRect(memDC, &card1, cardBrush);
+        RECT card1 = { 20, 56, rcClient.right - 20, 138 };
+        DrawRoundedRect(memDC, card1, cardBgColor, 14);
 
         bool isActive = g_serverActive.load();
 
@@ -1052,7 +1157,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBRUSH oldB = (HBRUSH)SelectObject(memDC, dotBrush);
         HPEN nullPen = CreatePen(PS_NULL, 0, RGB(0,0,0));
         HPEN oldP = (HPEN)SelectObject(memDC, nullPen);
-        Ellipse(memDC, 35, 76, 47, 88);
+        Ellipse(memDC, 35, 72, 47, 84);
         SelectObject(memDC, oldB);
         SelectObject(memDC, oldP);
         DeleteObject(dotBrush);
@@ -1062,7 +1167,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(memDC, RGB(255, 255, 255));
         
         std::wstring statusText = isActive ? L"Server Status: RUNNING (Port 5000)" : L"Server Status: STOPPED";
-        TextOutW(memDC, 55, 72, statusText.c_str(), (int)statusText.length());
+        TextOutW(memDC, 55, 68, statusText.c_str(), (int)statusText.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
@@ -1076,10 +1181,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         std::wstring ipLine = L"Local IP: " + Utf8ToWide(localIps);
-        TextOutW(memDC, 55, 92, ipLine.c_str(), (int)ipLine.length());
+        TextOutW(memDC, 55, 88, ipLine.c_str(), (int)ipLine.length());
 
         // Device Label & Dropdown
-        TextOutW(memDC, 35, 116, L"PC Audio Device:", 16);
+        TextOutW(memDC, 35, 110, L"PC Audio Device:", 16);
         std::string selectedDevName = "Default Playback Device";
         {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
@@ -1091,10 +1196,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
         std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  v";
 
-        RECT btnDeviceDropdown = { 150, 112, 480, 134 };
-        DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(34, 42, 60), RGB(0, 229, 255));
+        RECT btnDeviceDropdown = { 150, 106, 480, 128 };
+        DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(32, 40, 58), RGB(0, 229, 255));
 
-        RECT btnToggleServer = { 380, 68, 480, 96 };
+        RECT btnToggleServer = { 380, 66, 480, 92 };
         if (isActive) {
             DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(255, 82, 82), RGB(255, 255, 255));
         } else {
@@ -1102,16 +1207,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         // Active Clients Card
-        RECT card2 = { 20, 150, rcClient.right - 20, 225 };
-        FillRect(memDC, &card2, cardBrush);
+        RECT card2 = { 20, 146, rcClient.right - 20, 222 };
+        DrawRoundedRect(memDC, card2, cardBgColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 156, L"Active Clients", 14);
+        TextOutW(memDC, 35, 154, L"Active Clients", 14);
 
         if (g_clientSockets.size() >= 2) {
-            RECT btnSwapLR = { 375, 152, 475, 170 };
-            DrawPillButtonW(memDC, btnSwapLR, L"Swap L/R", RGB(34, 42, 60), RGB(0, 229, 255));
+            RECT btnSwapLR = { 375, 150, 475, 168 };
+            DrawPillButtonW(memDC, btnSwapLR, L"Swap L/R", RGB(32, 40, 58), RGB(0, 229, 255));
         }
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -1120,54 +1225,52 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         std::wstring c1Text = L"Client #1: " + Utf8ToWide(c1Ip);
         std::wstring c2Text = L"Client #2: " + Utf8ToWide(c2Ip);
 
-        TextOutW(memDC, 35, 176, c1Text.c_str(), (int)c1Text.length());
-        TextOutW(memDC, 35, 198, c2Text.c_str(), (int)c2Text.length());
+        TextOutW(memDC, 35, 174, c1Text.c_str(), (int)c1Text.length());
+        TextOutW(memDC, 35, 196, c2Text.c_str(), (int)c2Text.length());
 
         if (c1Ip != "None") {
-            RECT btnDropdownC1 = { 250, 174, 380, 192 };
-            RECT btnKickClient1= { 390, 174, 475, 192 };
+            RECT btnDropdownC1 = { 250, 172, 380, 190 };
+            RECT btnKickClient1= { 390, 172, 475, 190 };
 
             ClientChannelMode ch1 = g_client1Channel.load();
             const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch1 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
 
-            DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(34, 42, 60), RGB(0, 229, 255));
+            DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(32, 40, 58), RGB(0, 229, 255));
             DrawPillButtonW(memDC, btnKickClient1, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
         }
 
         if (c2Ip != "None") {
-            RECT btnDropdownC2 = { 250, 196, 380, 214 };
-            RECT btnKickClient2= { 390, 196, 475, 214 };
+            RECT btnDropdownC2 = { 250, 194, 380, 212 };
+            RECT btnKickClient2= { 390, 194, 475, 212 };
 
             ClientChannelMode ch2 = g_client2Channel.load();
             const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"Left (L)  v" : (ch2 == CLIENT_MODE_RIGHT) ? L"Right (R)  v" : L"Stereo (L+R)  v";
 
-            DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(34, 42, 60), RGB(0, 229, 255));
+            DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(32, 40, 58), RGB(0, 229, 255));
             DrawPillButtonW(memDC, btnKickClient2, L"Disconnect", RGB(255, 82, 82), RGB(255, 255, 255));
         }
 
         // Stereo Peak Audio Visualizer Meter Card
         RECT card3 = { 20, 230, rcClient.right - 20, 335 };
-        FillRect(memDC, &card3, cardBrush);
+        DrawRoundedRect(memDC, card3, cardBgColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 35, 242, L"Live Stereo Audio Visualizer Meter", 34);
+        TextOutW(memDC, 35, 240, L"Live Stereo Audio Visualizer Meter", 34);
 
-        RECT btnTestSound = { 375, 238, 475, 258 };
+        RECT btnTestSound = { 375, 236, 475, 256 };
         bool isTesting = g_isTestAudioPlaying.load();
-        DrawPillButtonW(memDC, btnTestSound, isTesting ? L"Playing..." : L"Test Sound", isTesting ? RGB(0, 230, 118) : RGB(34, 42, 60), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnTestSound, isTesting ? L"Playing..." : L"Test Sound", isTesting ? RGB(0, 230, 118) : RGB(32, 40, 58), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
 
-        HBRUSH meterBg = CreateSolidBrush(RGB(18, 22, 33));
-        RECT rBarL_Bg = { 70, 270, rcClient.right - 40, 288 };
-        RECT rBarR_Bg = { 70, 300, rcClient.right - 40, 318 };
-        FillRect(memDC, &rBarL_Bg, meterBg);
-        FillRect(memDC, &rBarR_Bg, meterBg);
-        DeleteObject(meterBg);
+        RECT rBarL_Bg = { 70, 268, rcClient.right - 40, 286 };
+        RECT rBarR_Bg = { 70, 298, rcClient.right - 40, 316 };
+        DrawRoundedRect(memDC, rBarL_Bg, RGB(14, 18, 26), 6);
+        DrawRoundedRect(memDC, rBarR_Bg, RGB(14, 18, 26), 6);
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
-        TextOutW(memDC, 35, 272, L"L:", 2);
-        TextOutW(memDC, 35, 302, L"R:", 2);
+        TextOutW(memDC, 35, 270, L"L:", 2);
+        TextOutW(memDC, 35, 300, L"R:", 2);
 
         float rmsL = g_rmsL_smooth.load();
         float rmsR = g_rmsR_smooth.load();
@@ -1177,20 +1280,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (barW_L > maxBarW) barW_L = maxBarW;
         if (barW_R > maxBarW) barW_R = maxBarW;
 
-        HBRUSH meterFill = CreateSolidBrush(RGB(0, 229, 255));
         if (barW_L > 0) {
-            RECT rBarL = { 70, 270, 70 + barW_L, 288 };
-            FillRect(memDC, &rBarL, meterFill);
+            RECT rBarL = { 70, 268, 70 + barW_L, 286 };
+            COLORREF colorL = (rmsL > 0.75f) ? RGB(255, 82, 82) : RGB(0, 229, 255);
+            DrawRoundedRect(memDC, rBarL, colorL, 6);
         }
         if (barW_R > 0) {
-            RECT rBarR = { 70, 300, 70 + barW_R, 318 };
-            FillRect(memDC, &rBarR, meterFill);
+            RECT rBarR = { 70, 298, 70 + barW_R, 316 };
+            COLORREF colorR = (rmsR > 0.75f) ? RGB(255, 82, 82) : RGB(0, 229, 255);
+            DrawRoundedRect(memDC, rBarR, colorR, 6);
         }
-        DeleteObject(meterFill);
 
         // Volume & Channel Gain Control Card
-        RECT card4 = { 20, 350, rcClient.right - 20, 505 };
-        FillRect(memDC, &card4, cardBrush);
+        RECT card4 = { 20, 343, rcClient.right - 20, 502 };
+        DrawRoundedRect(memDC, card4, cardBgColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
@@ -1266,8 +1369,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SelectObject(memDC, g_hFontFooter ? g_hFontFooter : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
         TextOutW(memDC, rcClient.right - 185, 516, L"Created by Vath Sathya", 22);
-
-        DeleteObject(cardBrush);
 
         // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
         int openMenu = g_openDropdown.load();

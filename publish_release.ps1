@@ -1,6 +1,6 @@
 param (
-    [string]$TagName = "v1.0.1",
-    [string]$ReleaseName = "Yanich DeskSound v1.0.1",
+    [string]$TagName = "v1.0.2",
+    [string]$ReleaseName = "Yanich DeskSound v1.0.2",
     [string]$RepoOwner = "vathsathya",
     [string]$RepoName = "yanich-desksound"
 )
@@ -47,7 +47,7 @@ $bodyJson = @{
     tag_name         = $TagName
     target_commitish = "main"
     name             = $ReleaseName
-    body             = "## Yanich DeskSound v1.0.1 Official Release`n`n**Full Release Assets:**`n- desksound.exe (Windows Desktop Server GUI)`n- app-release.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in v1.0.1:**`n- **Server GUI**: Fixed Dropdown Menu Z-order rendering bug, GDI memory leaks, thread safety data races, Unicode text rendering, WASAPI hot-device switching, System Tray context menu & close-to-tray.`n- **Android Client GUI**: Redesigned into ultra-minimal Material 3 layout, added Channel Mode Selector, Buffer Latency Selector, Volume Presets, Notification DISCONNECT action, System Audio Focus, and lifecycle coroutine safety.`n`nCreated by Vath Sathya."
+    body             = "## Yanich DeskSound v1.0.2 Official Release`n`n**Full Release Assets:**`n- desksound.exe (Windows Desktop Server GUI)`n- app-release.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in v1.0.2:**`n- **Auto-Update System**: Added Startup Auto-Update check on launch for Android Client App & Windows Server GUI.`n- **Windows Server GUI**: DWM Immersive Dark Mode integration, Studio Slate Cards (14px radius), Inline Version Badge, dynamic signal peak colors.`n- **Android Receiver Client**: Material 3 Update Dialog, top notification banner, Coroutine async release query.`n`nCreated by Vath Sathya."
     draft            = $false
     prerelease       = $false
 } | ConvertTo-Json

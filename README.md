@@ -1,6 +1,6 @@
-# 🔊 Yanich DeskSound `v1.0.0`
+# 🔊 Yanich DeskSound `v1.0.2`
 
-[![Release](https://img.shields.io/badge/Release-v1.0.0-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/Release-v1.0.2-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.2)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-00E5FF.svg?style=for-the-badge&logo=windows)](https://github.com/vathsathya/yanich-desksound)
 [![License](https://img.shields.io/badge/License-MIT-00E5FF.svg?style=for-the-badge)](LICENSE)
 
