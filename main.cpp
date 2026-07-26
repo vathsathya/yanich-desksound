@@ -47,8 +47,8 @@ std::atomic<bool> g_running{true};
 std::atomic<bool> g_serverActive{true};
 
 std::atomic<float> g_masterVolume{100.0f}; // 0% to 100%
-std::atomic<float> g_gainL{0.0f};         // -10dB to +10dB
-std::atomic<float> g_gainR{0.0f};         // -10dB to +10dB
+std::atomic<float> g_gainL{100.0f};        // 0% to 100% (Left Volume)
+std::atomic<float> g_gainR{100.0f};        // 0% to 100% (Right Volume)
 std::atomic<bool> g_isMuted{false};
 
 std::atomic<float> g_rmsL{0.0f};
@@ -310,8 +310,8 @@ void WasapiAudioLoop() {
                         g_rmsR.store(0.0f);
                     } else if (g_pwfx->wBitsPerSample == 32 && g_pwfx->nChannels == 2) {
                         float masterLinear = g_isMuted.load() ? 0.0f : (g_masterVolume.load() / 100.0f);
-                        float gainLLinear = powf(10.0f, g_gainL.load() / 20.0f);
-                        float gainRLinear = powf(10.0f, g_gainR.load() / 20.0f);
+                        float gainLLinear = (g_gainL.load() / 100.0f);
+                        float gainRLinear = (g_gainR.load() / 100.0f);
 
                         float volL = masterLinear * gainLLinear;
                         float volR = masterLinear * gainRLinear;
@@ -509,8 +509,8 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
         if (PtInRect(&btnReset, pt)) {
             g_masterVolume.store(100.0f);
-            g_gainL.store(0.0f);
-            g_gainR.store(0.0f);
+            g_gainL.store(100.0f);
+            g_gainR.store(100.0f);
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
@@ -526,24 +526,24 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         }
 
         if (PtInRect(&btnLeftMinus, pt)) {
-            float v = g_gainL.load() - 2.0f;
-            g_gainL.store(std::max(-10.0f, v));
+            float v = g_gainL.load() - 10.0f;
+            g_gainL.store(std::max(0.0f, v));
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
         if (PtInRect(&btnLeftPlus, pt)) {
-            float v = g_gainL.load() + 2.0f;
-            g_gainL.store(std::min(10.0f, v));
+            float v = g_gainL.load() + 10.0f;
+            g_gainL.store(std::min(100.0f, v));
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
         if (PtInRect(&btnRightMinus, pt)) {
-            float v = g_gainR.load() - 2.0f;
-            g_gainR.store(std::max(-10.0f, v));
+            float v = g_gainR.load() - 10.0f;
+            g_gainR.store(std::max(0.0f, v));
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
         if (PtInRect(&btnRightPlus, pt)) {
-            float v = g_gainR.load() + 2.0f;
-            g_gainR.store(std::min(10.0f, v));
+            float v = g_gainR.load() + 10.0f;
+            g_gainR.store(std::min(100.0f, v));
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
@@ -559,9 +559,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         if (g_activeDrag == DRAG_MASTER) {
             g_masterVolume.store(norm * 100.0f);
         } else if (g_activeDrag == DRAG_GAIN_L) {
-            g_gainL.store(-10.0f + norm * 20.0f);
+            g_gainL.store(norm * 100.0f);
         } else if (g_activeDrag == DRAG_GAIN_R) {
-            g_gainR.store(-10.0f + norm * 20.0f);
+            g_gainR.store(norm * 100.0f);
         }
         InvalidateRect(hwnd, NULL, FALSE);
     }
@@ -801,8 +801,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SelectObject(memDC, hFontSub);
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutA(memDC, 35, 392, "Master Volume:", 14);
-        TextOutA(memDC, 35, 430, "Left (L) Gain:", 14);
-        TextOutA(memDC, 35, 468, "Right (R) Gain:", 15);
+        TextOutA(memDC, 35, 430, "Left (L) Volume:", 16);
+        TextOutA(memDC, 35, 468, "Right (R) Volume:", 17);
 
         int trackX1 = 145, trackX2 = 335;
         int trackW = trackX2 - trackX1;
@@ -818,7 +818,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT rKnobM = { kxM - 7, 392, kxM + 7, 406 };
         DrawRoundedRect(memDC, rKnobM, RGB(255, 255, 255), 14);
 
-        float gLNorm = std::max(0.0f, std::min(1.0f, (g_gainL.load() + 10.0f) / 20.0f));
+        float gLNorm = std::max(0.0f, std::min(1.0f, g_gainL.load() / 100.0f));
         RECT rTrackL_Bg = { trackX1, 434, trackX2, 440 };
         DrawRoundedRect(memDC, rTrackL_Bg, RGB(24, 30, 44), 6);
         if (gLNorm > 0.0f) {
@@ -829,7 +829,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         RECT rKnobL = { kxL - 7, 430, kxL + 7, 444 };
         DrawRoundedRect(memDC, rKnobL, RGB(255, 255, 255), 14);
 
-        float gRNorm = std::max(0.0f, std::min(1.0f, (g_gainR.load() + 10.0f) / 20.0f));
+        float gRNorm = std::max(0.0f, std::min(1.0f, g_gainR.load() / 100.0f));
         RECT rTrackR_Bg = { trackX1, 472, trackX2, 478 };
         DrawRoundedRect(memDC, rTrackR_Bg, RGB(24, 30, 44), 6);
         if (gRNorm > 0.0f) {
@@ -847,18 +847,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         RECT btnLeftMinus   = { 345, 426, 385, 448 };
         RECT btnLeftPlus    = { 390, 426, 430, 448 };
-        DrawPillButton(memDC, btnLeftMinus, "-2dB", RGB(34, 42, 60), RGB(255, 255, 255));
-        DrawPillButton(memDC, btnLeftPlus,  "+2dB", RGB(34, 42, 60), RGB(255, 255, 255));
+        DrawPillButton(memDC, btnLeftMinus, "-10", RGB(34, 42, 60), RGB(255, 255, 255));
+        DrawPillButton(memDC, btnLeftPlus,  "+10", RGB(34, 42, 60), RGB(255, 255, 255));
 
         RECT btnRightMinus  = { 345, 464, 385, 486 };
         RECT btnRightPlus   = { 390, 464, 430, 486 };
-        DrawPillButton(memDC, btnRightMinus, "-2dB", RGB(34, 42, 60), RGB(255, 255, 255));
-        DrawPillButton(memDC, btnRightPlus,  "+2dB", RGB(34, 42, 60), RGB(255, 255, 255));
+        DrawPillButton(memDC, btnRightMinus, "-10", RGB(34, 42, 60), RGB(255, 255, 255));
+        DrawPillButton(memDC, btnRightPlus,  "+10", RGB(34, 42, 60), RGB(255, 255, 255));
 
         char strMaster[16], strL[16], strR[16];
         snprintf(strMaster, sizeof(strMaster), "%d%%", (int)g_masterVolume.load());
-        snprintf(strL, sizeof(strL), "%+.1fdB", g_gainL.load());
-        snprintf(strR, sizeof(strR), "%+.1fdB", g_gainR.load());
+        snprintf(strL, sizeof(strL), "%d%%", (int)g_gainL.load());
+        snprintf(strR, sizeof(strR), "%d%%", (int)g_gainR.load());
 
         SetTextColor(memDC, RGB(0, 230, 118));
         TextOutA(memDC, rcClient.right - 65, 392, strMaster, (int)strlen(strMaster));
