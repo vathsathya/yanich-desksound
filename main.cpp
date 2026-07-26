@@ -1117,7 +1117,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         RECT rcClient;
         GetClientRect(hwnd, &rcClient);
 
-        RECT rFooterText = { rcClient.right - 150, 476, rcClient.right - 20, 500 };
+        RECT rFooterText = { rcClient.right - 150, 490, rcClient.right - 20, 514 };
 
         if (PtInRect(&rFooterText, pt)) {
             ShowAboutDialog(hwnd);
@@ -1153,13 +1153,13 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
         HDC hdcTemp = GetDC(hwnd);
         HFONT oldF = (HFONT)SelectObject(hdcTemp, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        int startX = 115;
+        int startX = 98;
         for (size_t idx = 0; idx < ipListClick.size() && idx < 3; ++idx) {
             std::wstring wIp = Utf8ToWide(ipListClick[idx]);
             SIZE sz;
             GetTextExtentPoint32W(hdcTemp, wIp.c_str(), (int)wIp.length(), &sz);
-            int pillW = sz.cx + 16;
-            RECT rIpPill = { startX, 48, startX + pillW, 68 };
+            int pillW = sz.cx + 10;
+            RECT rIpPill = { startX, 50, startX + pillW, 70 };
             if (PtInRect(&rIpPill, pt)) {
                 SelectObject(hdcTemp, oldF);
                 ReleaseDC(hwnd, hdcTemp);
@@ -1175,7 +1175,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
                 }).detach();
                 return;
             }
-            startX += pillW + 8;
+            startX += pillW + 6;
         }
         SelectObject(hdcTemp, oldF);
         ReleaseDC(hwnd, hdcTemp);
@@ -1391,7 +1391,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         Shell_NotifyIconW(NIM_ADD, &g_nid);
 
         bool startupChecked = IsRunOnStartupEnabled();
-        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 479, 180, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
+        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 491, 180, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
 
         if (g_hFontSub) {
             SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
@@ -1557,7 +1557,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         COLORREF cardBgColor = RGB(23, 29, 43);
 
         // Server Status Card
-        RECT card1 = { 20, 20, rcClient.right - 20, 102 };
+        RECT card1 = { 20, 20, rcClient.right - 20, 114 };
         DrawRoundedRect(memDC, card1, cardBgColor, 14);
 
         bool isActive = g_serverActive.load();
@@ -1566,7 +1566,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBRUSH oldB = (HBRUSH)SelectObject(memDC, dotBrush);
         HPEN nullPen = CreatePen(PS_NULL, 0, RGB(0,0,0));
         HPEN oldP = (HPEN)SelectObject(memDC, nullPen);
-        Ellipse(memDC, 35, 36, 47, 48);
+        Ellipse(memDC, 35, 32, 47, 44);
         SelectObject(memDC, oldB);
         SelectObject(memDC, oldP);
         DeleteObject(dotBrush);
@@ -1576,7 +1576,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SetTextColor(memDC, RGB(255, 255, 255));
         
         std::wstring statusText = isActive ? L"Server Status: RUNNING (Port 5000)" : L"Server Status: STOPPED";
-        TextOutW(memDC, 55, 32, statusText.c_str(), (int)statusText.length());
+        TextOutW(memDC, 55, 28, statusText.c_str(), (int)statusText.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(160, 175, 200));
@@ -1589,7 +1589,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             c2Ip = g_client2IpStr;
         }
 
-        TextOutW(memDC, 35, 52, L"Local IP:", 9);
+        TextOutW(memDC, 35, 54, L"Local IP:", 9);
 
         std::vector<std::string> ipList;
         {
@@ -1604,7 +1604,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
         }
 
-        int startX = 115;
+        int startX = 98;
         int activeCopied = g_copiedIpIdx.load();
 
         for (size_t idx = 0; idx < ipList.size() && idx < 3; ++idx) {
@@ -1612,8 +1612,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SIZE sz;
             GetTextExtentPoint32W(memDC, wIp.c_str(), (int)wIp.length(), &sz);
 
-            int pillW = sz.cx + 16;
-            RECT rIpPill = { startX, 48, startX + pillW, 68 };
+            int pillW = sz.cx + 10;
+            RECT rIpPill = { startX, 50, startX + pillW, 70 };
 
             bool isCopied = ((int)idx == activeCopied);
             COLORREF bgCol   = isCopied ? RGB(0, 230, 118) : RGB(28, 36, 52);
@@ -1622,11 +1622,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             std::wstring label = isCopied ? L"Copied!" : wIp;
             DrawPillButtonW(memDC, rIpPill, label.c_str(), bgCol, textCol);
 
-            startX += pillW + 8;
+            startX += pillW + 6;
         }
 
         // Device Label & Dropdown
-        TextOutW(memDC, 35, 74, L"PC Audio Device:", 16);
+        TextOutW(memDC, 35, 82, L"PC Audio Device:", 16);
         std::string selectedDevName = "Default Playback Device";
         {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
@@ -1638,10 +1638,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
         std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  v";
 
-        RECT btnDeviceDropdown = { 150, 70, 480, 92 };
+        RECT btnDeviceDropdown = { 145, 78, 480, 100 };
         DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(32, 40, 58), RGB(0, 229, 255));
 
-        RECT btnToggleServer = { 380, 30, 480, 56 };
+        RECT btnToggleServer = { 380, 26, 480, 52 };
         if (isActive) {
             DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(55, 25, 33), RGB(255, 82, 82));
         } else {
@@ -1649,7 +1649,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         // Active Clients Card
-        RECT card2 = { 20, 110, rcClient.right - 20, 186 };
+        RECT card2 = { 20, 122, rcClient.right - 20, 198 };
         DrawRoundedRect(memDC, card2, cardBgColor, 14);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
@@ -1963,7 +1963,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     InitFonts();
 
     std::wstring winTitle = L"Yanich DeskSound Server " + Utf8ToWide(APP_VERSION_TAG);
-    HWND hwnd = CreateWindowExW(0, L"YanichDeskSoundGUIClass", winTitle.c_str(), WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 554, NULL, NULL, hInstance, NULL);
+    HWND hwnd = CreateWindowExW(0, L"YanichDeskSoundGUIClass", winTitle.c_str(), WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, 100, 100, 520, 566, NULL, NULL, hInstance, NULL);
     g_hwndMain = hwnd;
 
     bool startSilent = (strstr(lpCmdLine, "-silent") != NULL || strstr(lpCmdLine, "-service") != NULL);
