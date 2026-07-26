@@ -547,7 +547,7 @@ void AcceptClientsThread(SOCKET listenSocket) {
             }
 
             int optVal = 1;
-            int sndBufSize = 16 * 1024;
+            int sndBufSize = 128 * 1024;
             setsockopt(clientSocket, SOL_SOCKET, SO_SNDBUF, (const char*)&sndBufSize, sizeof(sndBufSize));
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&optVal, sizeof(optVal));
             setsockopt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optVal, sizeof(optVal));
