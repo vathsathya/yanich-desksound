@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">DeskSound</string>
+    <string name="title_server_settings">Desktop Audio Server</string>
+    <string name="label_ip">Server IP Address</string>
+    <string name="label_port">Port</string>
+    <string name="btn_connect">CONNECT</string>
+    <string name="btn_disconnect">DISCONNECT</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connecting">Connecting...</string>
+    <string name="status_streaming">Streaming WASAPI Loopback</string>
+    <string name="label_volume">Volume</string>
+    <string name="label_visualizer">Audio Level</string>
+    <string name="notification_channel_name">DeskSound Audio Service</string>
+    <string name="notification_title">DeskSound Streaming</string>
+    <string name="notification_text">Receiving desktop audio from Windows PC</string>
+</resources>

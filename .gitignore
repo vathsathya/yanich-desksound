@@ -1,0 +1,46 @@
+# Ignore Compiled Executables & Package Artifacts
+*.exe
+*.apk
+*.zip
+*.jar
+
+# C++ MSVC Build Outputs & Objects
+*.obj
+*.res
+*.pch
+*.idb
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.log
+
+# Asset Generation & Utility Helper Scripts
+process_icons.py
+test_receiver.py
+add_defender_exclusion.bat
+
+# Embedded Local JDK & Android SDK Toolchains
+/jdk/
+/android-sdk/
+/gradle/
+.gradle/
+
+# Android Build Outputs & IDE Files
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/*.iml
+android/app/*.iml
+build/
+
+# IDE, OS, & Gemini Scratch Folders
+.idea/
+.vs/
+.gemini/
+*.user
+*.suo
+*.sln
+Thumbs.db
+Desktop.ini
