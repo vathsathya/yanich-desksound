@@ -39,6 +39,7 @@
 #define DISCOVERY_PORT 5001
 #define WM_TRAYICON (WM_USER + 1)
 #define ID_CHK_STARTUP 1020
+#define ID_CHK_MIN_TO_TRAY 1021
 
 // Tray Menu Command IDs
 #define ID_TRAY_SHOW 2001
@@ -269,6 +270,7 @@ std::mutex g_formatMutex;
 
 HWND g_hwndMain = NULL;
 HWND g_hChkStartup = NULL;
+HWND g_hChkMinToTray = NULL;
 NOTIFYICONDATAW g_nid = {};
 
 HFONT g_hFontTitle  = NULL;
@@ -1372,6 +1374,28 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     }
 }
 
+
+
+bool IsMinimizeToTrayEnabled() {
+    HKEY hKey;
+    DWORD dwValue = 1;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD dwType = REG_DWORD, dwSize = sizeof(DWORD);
+        RegQueryValueExW(hKey, L"MinimizeToTray", NULL, &dwType, (LPBYTE)&dwValue, &dwSize);
+        RegCloseKey(hKey);
+    }
+    return dwValue != 0;
+}
+
+void SetMinimizeToTrayEnabled(bool enable) {
+    HKEY hKey;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\YanichDeskSound", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD dwValue = enable ? 1 : 0;
+        RegSetValueExW(hKey, L"MinimizeToTray", 0, REG_DWORD, (const BYTE*)&dwValue, sizeof(DWORD));
+        RegCloseKey(hKey);
+    }
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE: {
@@ -1391,12 +1415,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         Shell_NotifyIconW(NIM_ADD, &g_nid);
 
         bool startupChecked = IsRunOnStartupEnabled();
-        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 491, 180, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
+        g_hChkStartup = CreateWindowExW(0, L"BUTTON", L"Run on Windows Startup", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 491, 175, 20, hwnd, (HMENU)ID_CHK_STARTUP, GetModuleHandle(NULL), NULL);
+
+        bool minToTrayChecked = IsMinimizeToTrayEnabled();
+        g_hChkMinToTray = CreateWindowExW(0, L"BUTTON", L"Minimize to tray", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 200, 491, 140, 20, hwnd, (HMENU)ID_CHK_MIN_TO_TRAY, GetModuleHandle(NULL), NULL);
 
         if (g_hFontSub) {
             SendMessage(g_hChkStartup, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
+            SendMessage(g_hChkMinToTray, WM_SETFONT, (WPARAM)g_hFontSub, TRUE);
         }
         SendMessage(g_hChkStartup, BM_SETCHECK, startupChecked ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessage(g_hChkMinToTray, BM_SETCHECK, minToTrayChecked ? BST_CHECKED : BST_UNCHECKED, 0);
 
         CheckForUpdatesAsync();
         break;
@@ -1407,6 +1436,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (wmId == ID_CHK_STARTUP) {
             LRESULT chkState = SendMessage(g_hChkStartup, BM_GETCHECK, 0, 0);
             SetRunOnStartup(chkState == BST_CHECKED);
+        } else if (wmId == ID_CHK_MIN_TO_TRAY) {
+            LRESULT chkState = SendMessage(g_hChkMinToTray, BM_GETCHECK, 0, 0);
+            SetMinimizeToTrayEnabled(chkState == BST_CHECKED);
         } else if (wmId == ID_TRAY_SHOW) {
             ShowWindow(hwnd, SW_RESTORE);
             SetForegroundWindow(hwnd);
@@ -1435,8 +1467,68 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
 
     case WM_CLOSE: {
-        ShowWindow(hwnd, SW_HIDE); // Hide to system tray
-        return 0;
+        if (IsMinimizeToTrayEnabled()) {
+            static bool s_hasShownTrayTip = false;
+            if (!s_hasShownTrayTip) {
+                s_hasShownTrayTip = true;
+                g_nid.uFlags |= NIF_INFO;
+                lstrcpyW(g_nid.szInfoTitle, L"Yanich DeskSound Server");
+                lstrcpyW(g_nid.szInfo, L"DeskSound Server is running in the background.");
+                g_nid.dwInfoFlags = NIIF_INFO;
+                Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+            }
+            ShowWindow(hwnd, SW_HIDE);
+            return 0;
+        } else {
+            g_running = false;
+            DestroyWindow(hwnd);
+            return 0;
+        }
+    }
+
+    case WM_SETCURSOR: {
+        if (LOWORD(lParam) == HTCLIENT) {
+            POINT pt;
+            GetCursorPos(&pt);
+            ScreenToClient(hwnd, &pt);
+
+            RECT rcClient;
+            GetClientRect(hwnd, &rcClient);
+
+            bool isHand = false;
+
+            // Footer About link
+            RECT rFooterText = { rcClient.right - 150, 490, rcClient.right - 20, 514 };
+            if (PtInRect(&rFooterText, pt)) isHand = true;
+
+            // IP Capsules
+            if (pt.y >= 50 && pt.y <= 70 && pt.x >= 98 && pt.x <= 480) isHand = true;
+
+            // Server Stop/Start button
+            RECT btnToggleServer = { 380, 26, 480, 52 };
+            if (PtInRect(&btnToggleServer, pt)) isHand = true;
+
+            // Audio Device Dropdown
+            RECT btnDeviceDropdown = { 145, 78, 480, 100 };
+            if (PtInRect(&btnDeviceDropdown, pt)) isHand = true;
+
+            // Swap L/R button
+            RECT btnSwapLR = { 375, 126, 475, 144 };
+            if (PtInRect(&btnSwapLR, pt)) isHand = true;
+
+            // Test Sound button
+            RECT btnTestSound = { 370, 210, 475, 232 };
+            if (PtInRect(&btnTestSound, pt)) isHand = true;
+
+            // Volume sliders area & mute/reset buttons
+            if (pt.y >= 319 && pt.y <= 478) isHand = true;
+
+            if (isHand) {
+                SetCursor(LoadCursor(NULL, IDC_HAND));
+                return TRUE;
+            }
+        }
+        break;
     }
 
     case WM_MOUSEWHEEL: {
