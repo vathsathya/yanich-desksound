@@ -15,3 +15,21 @@ dependencyResolutionManagement {
 
 rootProject.name = "YanichDeskSound"
 include ':app'
+
+// Dynamic Android SDK Path Auto-Resolution
+def localPropertiesFile = new File(rootDir, "local.properties")
+if (!localPropertiesFile.exists()) {
+    def envSdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+    if (envSdk) {
+        localPropertiesFile.withWriter("UTF-8") { writer ->
+            writer.writeLine("sdk.dir=${envSdk.replace('\\', '/')}")
+        }
+    } else {
+        def relSdk = new File(rootDir, "../android-sdk")
+        if (relSdk.exists()) {
+            localPropertiesFile.withWriter("UTF-8") { writer ->
+                writer.writeLine("sdk.dir=${relSdk.canonicalPath.replace('\\', '/')}")
+            }
+        }
+    }
+}

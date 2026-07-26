@@ -15,6 +15,11 @@
 *.lib
 *.log
 
+# Machine-Specific Local Configuration & Toolchain Overrides
+local.properties
+android/local.properties
+*.local
+
 # Asset Generation & Utility Helper Scripts
 process_icons.py
 test_receiver.py
@@ -26,7 +31,7 @@ add_defender_exclusion.bat
 /gradle/
 .gradle/
 
-# Android Build Outputs & IDE Files
+# Android Build Outputs & IDE Folders
 android/.gradle/
 android/build/
 android/app/build/
