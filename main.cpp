@@ -503,8 +503,25 @@ void WasapiAudioLoop() {
                                 rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
                                 rawR = rawL;
                             } else {
-                                rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
-                                rawR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
+                                float inL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
+                                float inR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
+
+                                // Strict Differential Crosstalk Cancellation Filter
+                                // Eliminates Realtek Audio Console / Windows Sound Enhancements Crosstalk & Monofication
+                                float diff = inL - inR;
+                                float threshold = 0.05f;
+                                if (fabsf(diff) > threshold) {
+                                    if (diff > 0.0f) {
+                                        rawL = diff;
+                                        rawR = 0.0f;
+                                    } else {
+                                        rawL = 0.0f;
+                                        rawR = -diff;
+                                    }
+                                } else {
+                                    rawL = inL;
+                                    rawR = inR;
+                                }
                             }
 
                             float sampleL = rawL * volL;
