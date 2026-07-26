@@ -718,8 +718,14 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
         RECT btnTestSound = { 375, 238, 475, 258 };
         if (PtInRect(&btnTestSound, pt)) {
-            g_testAudioStartTime.store(GetTickCount());
-            g_isTestAudioPlaying.store(true);
+            if (g_isTestAudioPlaying.load()) {
+                g_isTestAudioPlaying.store(false);
+                g_rmsL.store(0.0f);
+                g_rmsR.store(0.0f);
+            } else {
+                g_testAudioStartTime.store(GetTickCount());
+                g_isTestAudioPlaying.store(true);
+            }
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
@@ -876,6 +882,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
 
     case WM_TIMER: {
+        if (g_isTestAudioPlaying.load()) {
+            DWORD elapsed = GetTickCount() - g_testAudioStartTime.load();
+            if (elapsed >= 2000) {
+                g_isTestAudioPlaying.store(false);
+                g_rmsL.store(0.0f);
+                g_rmsR.store(0.0f);
+            }
+        }
         InvalidateRect(hwnd, NULL, FALSE);
         break;
     }
