@@ -40,25 +40,28 @@ echo ✅ app-release.apk compiled successfully!
 echo.
 
 REM 4. Git Tag & Publish Source Code Release to GitHub
-echo [3/3] Publishing Release to GitHub Repository...
-git add README.md main.cpp resource.rc android/ build_and_publish.bat .gitignore
-git commit -m "Release build v1.0.0: Fresh server & client compilation"
+echo [3/4] Pushing Source Code and Tag to GitHub...
+git add README.md main.cpp resource.rc android/ build_and_publish.bat publish_release.ps1 .gitignore
+git commit -m "Release build v1.0.0: Automated compilation & publication"
 git tag -a v1.0.0 -m "Yanich DeskSound Release v1.0.0" -f
 git push origin main --force
 git push origin v1.0.0 --force
 
+REM 5. Create Official GitHub Release & Upload Binary Assets via API
+echo.
+echo [4/4] Creating GitHub Release & Uploading Binary Assets (exe & apk)...
+powershell -ExecutionPolicy Bypass -File "%~dp0publish_release.ps1"
+
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ============================================================
-    echo   🎉 SUCCESS! Yanich DeskSound v1.0.0 Tagged!
-    echo   - Opening GitHub Release Page in browser...
-    echo   - Server GUI: desksound.exe
-    echo   - Android Receiver: app-release.apk
-    echo   - GitHub Repo: https://github.com/vathsathya/yanich-desksound
+    echo   🎉 SUCCESS! Yanich DeskSound v1.0.0 Published!
+    echo   - Release Link: https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.0
+    echo   - Server GUI: desksound.exe (318 KB)
+    echo   - Android App: app-release.apk (4.88 MB)
     echo ============================================================
-    start https://github.com/vathsathya/yanich-desksound/releases/new?tag=v1.0.0
 ) else (
-    echo ⚠️ WARNING: Git push encountered an issue. Check network / git config.
+    echo ⚠️ WARNING: Release API step encountered an issue.
 )
 
 pause
