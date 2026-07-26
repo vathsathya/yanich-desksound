@@ -309,27 +309,31 @@ class AudioReceiverService : Service() {
 
         initAudioTrack(sampleRate, channels, isFloat)
 
-        val tagBuffer = ByteArray(4)
-        val pcmBuffer = ByteArray(4096)
-        val floatBuffer = FloatArray(1024)
+        val headerBuffer = ByteArray(8)
+        val headerBb = ByteBuffer.wrap(headerBuffer).order(ByteOrder.BIG_ENDIAN)
 
-        val tagBb = ByteBuffer.wrap(tagBuffer).order(ByteOrder.BIG_ENDIAN)
-        val pcmBb = ByteBuffer.wrap(pcmBuffer).order(ByteOrder.LITTLE_ENDIAN)
+        var pcmBuffer = ByteArray(8192)
+        var floatBuffer = FloatArray(2048)
 
         var lastLevelReportTime = 0L
         var currentServerTag = -1
 
         while (isStreaming && isActive) {
-            // 1. Read 4-byte big-endian modeTag header
-            var tagRead = 0
-            while (tagRead < 4 && isStreaming && isActive) {
-                val r = inputStream.read(tagBuffer, tagRead, 4 - tagRead)
+            // 1. Read 8-byte big-endian header: [4 bytes modeTag] [4 bytes audioLength]
+            var hRead = 0
+            while (hRead < 8 && isStreaming && isActive) {
+                val r = inputStream.read(headerBuffer, hRead, 8 - hRead)
                 if (r == -1) throw Exception("Server closed socket stream")
-                tagRead += r
+                hRead += r
             }
 
-            tagBb.rewind()
-            val modeTag = tagBb.int
+            headerBb.rewind()
+            val modeTag = headerBb.int
+            val audioLength = headerBb.int
+
+            if (audioLength <= 0 || audioLength > 65536) {
+                throw Exception("Invalid audio packet length: $audioLength")
+            }
 
             if (modeTag != currentServerTag) {
                 currentServerTag = modeTag
@@ -344,19 +348,26 @@ class AudioReceiverService : Service() {
                 }
             }
 
-            // 2. Read 4096 bytes of Float PCM Audio payload
+            // 2. Read exactly audioLength bytes of Float PCM Audio payload
+            if (pcmBuffer.size < audioLength) {
+                pcmBuffer = ByteArray(audioLength)
+            }
+
             var pcmRead = 0
-            while (pcmRead < 4096 && isStreaming && isActive) {
-                val r = inputStream.read(pcmBuffer, pcmRead, 4096 - pcmRead)
+            while (pcmRead < audioLength && isStreaming && isActive) {
+                val r = inputStream.read(pcmBuffer, pcmRead, audioLength - pcmRead)
                 if (r == -1) throw Exception("Server closed socket stream")
                 pcmRead += r
             }
 
             if (pcmRead > 0) {
-                pcmBb.rewind()
                 val floatCount = pcmRead / 4
                 val frameCount = floatCount / 2
+                if (floatBuffer.size < floatCount) {
+                    floatBuffer = FloatArray(floatCount)
+                }
 
+                val pcmBb = ByteBuffer.wrap(pcmBuffer, 0, pcmRead).order(ByteOrder.LITTLE_ENDIAN)
                 val curOverride = overrideMode
                 for (i in 0 until frameCount) {
                     var sampleL = pcmBb.float

@@ -250,26 +250,29 @@ void AcceptClientsThread(SOCKET listenSocket) {
             u_long nonBlockingMode = 1;
             ioctlsocket(clientSocket, FIONBIO, &nonBlockingMode);
 
+            g_clientSockets.push_back(clientSocket);
+            const char* initModeStr = "STEREO";
+            if (g_clientSockets.size() == 1) {
+                g_client1IpStr = clientIp;
+                g_client1Channel.store(CLIENT_MODE_LEFT);
+                initModeStr = "LEFT";
+            } else if (g_clientSockets.size() == 2) {
+                g_client2IpStr = clientIp;
+                g_client2Channel.store(CLIENT_MODE_RIGHT);
+                initModeStr = "RIGHT";
+            }
+
             // Send initial 32-byte format handshake
             {
                 std::lock_guard<std::mutex> formatLock(g_formatMutex);
                 if (g_pwfx) {
                     char formatHeader[33] = {0};
-                    snprintf(formatHeader, sizeof(formatHeader), "FORMAT|%u|%u|%u", g_pwfx->nSamplesPerSec, g_pwfx->nChannels, g_pwfx->wBitsPerSample);
+                    snprintf(formatHeader, sizeof(formatHeader), "FORMAT|%u|%u|%u|%s", g_pwfx->nSamplesPerSec, g_pwfx->nChannels, g_pwfx->wBitsPerSample, initModeStr);
                     size_t headerLen = strlen(formatHeader);
                     for (size_t i = headerLen; i < 32; ++i) formatHeader[i] = ' ';
                     formatHeader[32] = '\0';
                     send(clientSocket, formatHeader, 32, 0);
                 }
-            }
-
-            g_clientSockets.push_back(clientSocket);
-            if (g_clientSockets.size() == 1) {
-                g_client1IpStr = clientIp;
-                g_client1Channel.store(CLIENT_MODE_LEFT);
-            } else if (g_clientSockets.size() == 2) {
-                g_client2IpStr = clientIp;
-                g_client2Channel.store(CLIENT_MODE_RIGHT);
             }
         }
         if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
@@ -279,14 +282,17 @@ void AcceptClientsThread(SOCKET listenSocket) {
 // Memory-Optimized Zero-Allocation Audio Packet Sender
 bool SendAudioPacketWithTag(SOCKET sock, uint32_t modeTag, const char* pAudioData, int audioBytes) {
     thread_local static std::vector<char> s_sendPacketBuffer;
-    size_t totalSize = 4 + audioBytes;
+    size_t totalSize = 8 + audioBytes;
     if (s_sendPacketBuffer.size() < totalSize) {
         s_sendPacketBuffer.resize(totalSize);
     }
 
     uint32_t netTag = htonl(modeTag);
+    uint32_t netLen = htonl((uint32_t)audioBytes);
+
     memcpy(s_sendPacketBuffer.data(), &netTag, 4);
-    memcpy(s_sendPacketBuffer.data() + 4, pAudioData, audioBytes);
+    memcpy(s_sendPacketBuffer.data() + 4, &netLen, 4);
+    memcpy(s_sendPacketBuffer.data() + 8, pAudioData, audioBytes);
 
     int sent = send(sock, s_sendPacketBuffer.data(), (int)totalSize, 0);
     if (sent == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK) {
