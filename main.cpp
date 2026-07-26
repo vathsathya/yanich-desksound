@@ -302,10 +302,12 @@ void AcceptClientsThread(SOCKET listenSocket) {
             }
 
             int optVal = 1;
-            int sndBufSize = 64 * 1024;
+            int sndBufSize = 16 * 1024;
             setsockopt(clientSocket, SOL_SOCKET, SO_SNDBUF, (const char*)&sndBufSize, sizeof(sndBufSize));
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&optVal, sizeof(optVal));
             setsockopt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optVal, sizeof(optVal));
+            int tos = 0x10;
+            setsockopt(clientSocket, IPPROTO_IP, IP_TOS, (const char*)&tos, sizeof(tos));
 
             u_long nonBlockingMode = 1;
             ioctlsocket(clientSocket, FIONBIO, &nonBlockingMode);
