@@ -1,6 +1,6 @@
-# 🔊 Yanich DeskSound `v1.0.6`
+# 🔊 Yanich DeskSound `v1.0.7`
 
-[![Release](https://img.shields.io/badge/Release-v1.0.6-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.6)
+[![Release](https://img.shields.io/badge/Release-v1.0.7-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.0.7)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-00E5FF.svg?style=for-the-badge&logo=windows)](https://github.com/vathsathya/yanich-desksound)
 [![License](https://img.shields.io/badge/License-MIT-00E5FF.svg?style=for-the-badge)](LICENSE)
 [![Latency](https://img.shields.io/badge/Latency-~3ms%20(USB)-00E376.svg?style=for-the-badge)](https://github.com/vathsathya/yanich-desksound#-%E0%9E%95-connection-modes--performance-benchmarks)
@@ -17,9 +17,11 @@ Developed with passion by **[Vath Sathya](https://github.com/vathsathya)** (`@va
 ## ✨ Highlight Features
 
 ### 🖥️ Windows Desktop Server (`desksound.exe`)
-- **Native Title Bar Integration:** Displays version string directly in the native Windows Title Bar (`Yanich DeskSound Server v1.0.6`).
+- **Native Title Bar Integration:** Displays version string directly in the native Windows Title Bar (`Yanich DeskSound Server v1.0.7`).
 - **🏷️ Non-Overlapping IP Capsule Badges:** Displays local IP addresses in distinct Cyan Capsule Pill Badges (`[ 10.10.10.126 ]`) with zero text/border collisions.
 - **📋 1-Click Copy to Clipboard:** Click any IP Capsule badge to instantly copy that IP address to the Windows Clipboard with visual `"Copied!"` confirmation.
+- **👆 Hand Cursor (`IDC_HAND`) Micro-Interactions:** Custom hand cursor feedback when hovering over IP Capsules, buttons, volume sliders, and dropdown menus.
+- **☑️ 'Minimize to tray' Checkbox Option:** Custom checkbox preference to toggle whether closing the window hides it into the system tray or exits completely.
 - **🎛️ Dual-Channel Stereo Control:** Independent volume sliders (Master, Left, Right) and per-client channel selection (**Left**, **Right**, **Stereo**).
 - **📊 Live Peak Audio Visualizer:** Dual L/R peak meter bars with clipping protection.
 - **ℹ️ Refined Dark About Dialog:** Integrated 470x530px dark mode dialog displaying Khmer/English overview, developer info, and 1-click GitHub Release update checker with zero text clipping.
@@ -29,6 +31,7 @@ Developed with passion by **[Vath Sathya](https://github.com/vathsathya)** (`@va
 - **⚡ 0-Click Auto Discovery:** Automatically scans your local Wi-Fi / USB subnet and connects instantly without typing IP addresses.
 - **📱 3-Tab Studio UI:** Seamless navigation between **Connection**, **Audio Monitor**, and **Info/About** tabs.
 - **🇰🇭 Khmer ClearType & Google Fonts:** Integrated `Kantumruy Pro` & `Leelawadee UI` typography for crisp, high-definition text rendering.
+- **🔋 High-Performance WifiLock & WakeLock:** Prevents Android OS Doze mode / battery saver from throttling Wi-Fi packets when screen turns off.
 - **🛡️ 24/7 Auto-Reconnect Engine:** Background service automatically restores stream when reconnecting to Wi-Fi or USB tethering.
 
 ---
@@ -51,20 +54,20 @@ graph TD
 
 | Component | Asset File | File Size | Description |
 | :--- | :--- | :--- | :--- |
-| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.0.6.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.6/yanich-desksound_v1.0.6.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
-| 📱 **Android Receiver App** | [`yanich-desksound_v1.0.6.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.6/yanich-desksound_v1.0.6.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
+| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.0.7.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.7/yanich-desksound_v1.0.7.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
+| 📱 **Android Receiver App** | [`yanich-desksound_v1.0.7.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.7/yanich-desksound_v1.0.7.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
 
 ---
 
 ## 📖 Step-by-Step User Guide
 
 ### 1. Launch Windows PC Server
-1. Download [`yanich-desksound_v1.0.6.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.6/yanich-desksound_v1.0.6.exe) and double-click to run.
+1. Download [`yanich-desksound_v1.0.7.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.7/yanich-desksound_v1.0.7.exe) and double-click to run.
 2. Verify **`Server Status: RUNNING (Port 5000)`**.
 3. Click any **IP Capsule Pill Badge** (e.g. `[ 192.168.1.100 ]`) to copy your PC's IP address to Clipboard.
 
 ### 2. Launch Android Receiver App
-1. Download and install [`yanich-desksound_v1.0.6.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.6/yanich-desksound_v1.0.6.apk) on your Android phone.
+1. Download and install [`yanich-desksound_v1.0.7.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.7/yanich-desksound_v1.0.7.apk) on your Android phone.
 2. Open the app. It will **automatically discover your PC Server and stream audio instantly**.
 3. If auto-discovery is blocked by your router, paste your PC's IP into the address field and tap **`START STREAMING`**.
 
@@ -87,6 +90,7 @@ graph TD
 - **Swap L/R Button:** Instantly swap Left and Right channels when two phones are connected as dual stereo speakers.
 - **Test Sound Button:** Plays a stereo ping test sound to verify channel separation.
 - **Volume & Gain Sliders:** Adjust Master Volume, Left Volume, and Right Volume with 1-click Mute buttons.
+- **Minimize to tray Checkbox:** Toggle whether closing the app hides it to system tray or exits completely.
 - **About Developer Footer Link:** Click `About Developer` at the bottom right to open the About & Software Update dialog.
 
 ---
@@ -156,7 +160,7 @@ Yes! Check the <b>"Run on Windows Startup"</b> checkbox in the server GUI or lau
 
 ## 🇰🇭 ព័ត៌មានជាភាសាខ្មែរ (Khmer Summary)
 
-**Yanich DeskSound `v1.0.6`** គឺជាប្រព័ន្ធបញ្ជូន និងទទួលសំឡេង Real-time គុណភាពខ្ពស់ និង Latency ទាបបំផុត (ត្រឹមតែ **~3ms តាម USB Tethering** ឬ **~15ms តាម 5GHz Wi-Fi**) ដែលកែប្រែទូរស័ព្ទ Android របស់អ្នកឲ្យទៅជាបាសឥតខ្សែ (Wireless Speaker) ឬបាសឆ្វេងស្តាំ (Dual Stereo Speakers) សម្រាប់កុំព្យូទ័រ Windows PC។
+**Yanich DeskSound `v1.0.7`** គឺជាប្រព័ន្ធបញ្ជូន និងទទួលសំឡេង Real-time គុណភាពខ្ពស់ និង Latency ទាបបំផុត (ត្រឹមតែ **~3ms តាម USB Tethering** ឬ **~15ms តាម 5GHz Wi-Fi**) ដែលកែប្រែទូរស័ព្ទ Android របស់អ្នកឲ្យទៅជាបាសឥតខ្សែ (Wireless Speaker) ឬបាសឆ្វេងស្តាំ (Dual Stereo Speakers) សម្រាប់កុំព្យូទ័រ Windows PC។
 
 * **1-Click Copy IP:** គ្រាន់តែចុចលើប្រអប់ IP Capsule `[ 192.168.x.x ]` វានឹង Copy IP ទៅ Clipboard ភ្លាមៗ។
 * **About & Software Update Dialog:** មានផ្ទាំងព័ត៌មានខ្មែរ/អង់គ្លេស និងប៊ូតុង `CHECK FOR UPDATES` ពិនិត្យកំណែប្រែថ្មីលើ GitHub។
