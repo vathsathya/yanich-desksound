@@ -503,25 +503,8 @@ void WasapiAudioLoop() {
                                 rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
                                 rawR = rawL;
                             } else {
-                                float inL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
-                                float inR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
-
-                                // Strict Differential Crosstalk Cancellation Filter
-                                // Eliminates Realtek Audio Console / Windows Sound Enhancements Crosstalk & Monofication
-                                float diff = inL - inR;
-                                float threshold = 0.05f;
-                                if (fabsf(diff) > threshold) {
-                                    if (diff > 0.0f) {
-                                        rawL = diff;
-                                        rawR = 0.0f;
-                                    } else {
-                                        rawL = 0.0f;
-                                        rawR = -diff;
-                                    }
-                                } else {
-                                    rawL = inL;
-                                    rawR = inR;
-                                }
+                                rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
+                                rawR = ReadSampleAsFloat(pFrame, 1, bitsPerSample, isFloatFormat);
                             }
 
                             float sampleL = rawL * volL;
@@ -663,16 +646,18 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         // Handle open dropdown selection first
         int openMenu = g_openDropdown.load();
         if (openMenu == 1) {
-            RECT rOpt1 = { 250, 194, 380, 212 };
-            RECT rOpt2 = { 250, 214, 380, 232 };
-            RECT rOpt3 = { 250, 234, 380, 252 };
+            RECT rOpt1 = { 250, 196, 380, 214 };
+            RECT rOpt2 = { 250, 216, 380, 234 };
+            RECT rOpt3 = { 250, 236, 380, 254 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client1Channel.store(CLIENT_MODE_LEFT);
+                if (g_clientSockets.size() >= 2) g_client2Channel.store(CLIENT_MODE_RIGHT);
                 g_openDropdown.store(0);
                 InvalidateRect(hwnd, NULL, FALSE); return;
             }
             if (PtInRect(&rOpt2, pt)) {
                 g_client1Channel.store(CLIENT_MODE_RIGHT);
+                if (g_clientSockets.size() >= 2) g_client2Channel.store(CLIENT_MODE_LEFT);
                 g_openDropdown.store(0);
                 InvalidateRect(hwnd, NULL, FALSE); return;
             }
@@ -684,16 +669,18 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 2) {
-            RECT rOpt1 = { 250, 136, 380, 154 };
-            RECT rOpt2 = { 250, 156, 380, 174 };
-            RECT rOpt3 = { 250, 176, 380, 194 };
+            RECT rOpt1 = { 250, 132, 380, 150 };
+            RECT rOpt2 = { 250, 152, 380, 170 };
+            RECT rOpt3 = { 250, 172, 380, 190 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client2Channel.store(CLIENT_MODE_LEFT);
+                if (g_clientSockets.size() >= 1) g_client1Channel.store(CLIENT_MODE_RIGHT);
                 g_openDropdown.store(0);
                 InvalidateRect(hwnd, NULL, FALSE); return;
             }
             if (PtInRect(&rOpt2, pt)) {
                 g_client2Channel.store(CLIENT_MODE_RIGHT);
+                if (g_clientSockets.size() >= 1) g_client1Channel.store(CLIENT_MODE_LEFT);
                 g_openDropdown.store(0);
                 InvalidateRect(hwnd, NULL, FALSE); return;
             }
@@ -701,6 +688,20 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
                 g_client2Channel.store(CLIENT_MODE_STEREO);
                 g_openDropdown.store(0);
                 InvalidateRect(hwnd, NULL, FALSE); return;
+            }
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (openMenu == 3) {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int itemY = 136;
+            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
+                RECT rOpt = { 150, itemY, 480, itemY + 18 };
+                if (PtInRect(&rOpt, pt)) {
+                    g_selectedDeviceIndex.store((int)k);
+                    g_openDropdown.store(0);
+                    InvalidateRect(hwnd, NULL, FALSE); return;
+                }
+                itemY += 20;
             }
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
@@ -721,20 +722,6 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_isTestAudioPlaying.store(true);
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE); return;
-        } else if (openMenu == 3) {
-            std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int itemY = 136;
-            for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 145, itemY, 480, itemY + 20 };
-                if (PtInRect(&rOpt, pt)) {
-                    g_selectedDeviceIndex.store((int)k);
-                    g_openDropdown.store(0);
-                    InvalidateRect(hwnd, NULL, FALSE); return;
-                }
-                itemY += 20;
-            }
-            g_openDropdown.store(0);
-            InvalidateRect(hwnd, NULL, FALSE);
         }
 
         if (PtInRect(&btnDeviceDropdown, pt)) {

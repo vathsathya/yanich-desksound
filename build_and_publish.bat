@@ -64,5 +64,3 @@ if %ERRORLEVEL% EQU 0 (
 ) else (
     echo ⚠️ WARNING: Release API step encountered an issue.
 )
-
-pause
