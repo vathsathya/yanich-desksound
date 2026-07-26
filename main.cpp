@@ -122,6 +122,9 @@ std::atomic<bool> g_isMutedR{false};
 std::atomic<float> g_rmsL{0.0f};
 std::atomic<float> g_rmsR{0.0f};
 
+std::atomic<bool> g_isTestAudioPlaying{false};
+std::atomic<DWORD> g_testAudioStartTime{0};
+
 std::string g_client1IpStr = "None";
 std::string g_client2IpStr = "None";
 std::string g_localIpsStr = "";
@@ -438,7 +441,17 @@ void WasapiAudioLoop() {
                 if (SUCCEEDED(pCaptureClient->GetBuffer(&pData, &numFramesAvailable, &flags, NULL, NULL)) && numFramesAvailable > 0) {
                     UINT32 bytesToRead = numFramesAvailable * g_pwfx->nBlockAlign;
 
-                    if (!g_serverActive.load() || (flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
+                    bool isTestPlaying = g_isTestAudioPlaying.load();
+                    DWORD nowTick = GetTickCount();
+                    if (isTestPlaying) {
+                        DWORD elapsed = nowTick - g_testAudioStartTime.load();
+                        if (elapsed > 2000) {
+                            g_isTestAudioPlaying.store(false);
+                            isTestPlaying = false;
+                        }
+                    }
+
+                    if (!g_serverActive.load() || (!isTestPlaying && (flags & AUDCLNT_BUFFERFLAGS_SILENT))) {
                         memset(pData, 0, bytesToRead);
                         g_rmsL.store(0.0f);
                         g_rmsR.store(0.0f);
@@ -475,7 +488,18 @@ void WasapiAudioLoop() {
                             float rawL = 0.0f;
                             float rawR = 0.0f;
 
-                            if (chCount == 1) {
+                            if (isTestPlaying) {
+                                DWORD elapsed = nowTick - g_testAudioStartTime.load();
+                                static float s_phase = 0.0f;
+                                s_phase += 1.0f / (float)(g_pwfx->nSamplesPerSec ? g_pwfx->nSamplesPerSec : 48000);
+                                if (elapsed < 1000) {
+                                    rawL = 0.4f * sinf(2.0f * 3.14159265f * 440.0f * s_phase);
+                                    rawR = 0.0f;
+                                } else {
+                                    rawL = 0.0f;
+                                    rawR = 0.4f * sinf(2.0f * 3.14159265f * 880.0f * s_phase);
+                                }
+                            } else if (chCount == 1) {
                                 rawL = ReadSampleAsFloat(pFrame, 0, bitsPerSample, isFloatFormat);
                                 rawR = rawL;
                             } else {
@@ -643,9 +667,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 2) {
-            RECT rOpt1 = { 250, 216, 380, 234 };
-            RECT rOpt2 = { 250, 234, 380, 252 };
-            RECT rOpt3 = { 250, 252, 380, 270 };
+            RECT rOpt1 = { 250, 136, 380, 154 };
+            RECT rOpt2 = { 250, 156, 380, 174 };
+            RECT rOpt3 = { 250, 176, 380, 194 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client2Channel.store(CLIENT_MODE_LEFT);
                 g_openDropdown.store(0);
@@ -663,6 +687,23 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             }
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
+        }
+
+        RECT btnSwapLR = { 375, 152, 475, 170 };
+        if (PtInRect(&btnSwapLR, pt)) {
+            ClientChannelMode tmp = g_client1Channel.load();
+            g_client1Channel.store(g_client2Channel.load());
+            g_client2Channel.store(tmp);
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE); return;
+        }
+
+        RECT btnTestSound = { 375, 238, 475, 258 };
+        if (PtInRect(&btnTestSound, pt)) {
+            g_testAudioStartTime.store(GetTickCount());
+            g_isTestAudioPlaying.store(true);
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE); return;
         } else if (openMenu == 3) {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
             int itemY = 136;
@@ -924,7 +965,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutA(memDC, 35, 158, "Active Clients", 14);
+        TextOutA(memDC, 35, 156, "Active Clients", 14);
+
+        if (g_clientSockets.size() >= 2) {
+            RECT btnSwapLR = { 375, 152, 475, 170 };
+            DrawPillButton(memDC, btnSwapLR, "⇄ Swap L/R", RGB(34, 42, 60), RGB(0, 229, 255));
+        }
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
@@ -970,11 +1016,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButton(memDC, rOpt3, "Stereo (L+R)",      (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
         } else if (openMenu == 2 && g_client2IpStr != "None") {
-            RECT rMenuBg = { 248, 214, 382, 276 };
+            RECT rMenuBg = { 248, 134, 382, 196 };
             DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { 250, 216, 380, 234 };
-            RECT rOpt2 = { 250, 234, 380, 252 };
-            RECT rOpt3 = { 250, 252, 380, 270 };
+            RECT rOpt1 = { 250, 136, 380, 154 };
+            RECT rOpt2 = { 250, 156, 380, 174 };
+            RECT rOpt3 = { 250, 176, 380, 194 };
             ClientChannelMode ch2 = g_client2Channel.load();
             DrawPillButton(memDC, rOpt1, "Left Channel (L)",  (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
             DrawPillButton(memDC, rOpt2, "Right Channel (R)", (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
@@ -1003,6 +1049,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutA(memDC, 35, 242, "Live Stereo Audio Visualizer Meter", 34);
+
+        RECT btnTestSound = { 375, 238, 475, 258 };
+        bool isTesting = g_isTestAudioPlaying.load();
+        DrawPillButton(memDC, btnTestSound, isTesting ? "Playing..." : "🎵 Test Sound", isTesting ? RGB(0, 230, 118) : RGB(34, 42, 60), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
 
         HBRUSH meterBg = CreateSolidBrush(RGB(18, 22, 33));
         RECT rBarL_Bg = { 70, 270, rcClient.right - 40, 288 };
