@@ -680,7 +680,12 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         }
 
         if (PtInRect(&btnDeviceDropdown, pt)) {
-            g_openDropdown.store((openMenu == 3) ? 0 : 3);
+            if (openMenu != 3) {
+                EnumerateAudioDevices();
+                g_openDropdown.store(3);
+            } else {
+                g_openDropdown.store(0);
+            }
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
@@ -1146,6 +1151,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+    CoInitialize(NULL);
     InitFonts();
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return -1;
