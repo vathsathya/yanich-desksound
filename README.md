@@ -18,12 +18,12 @@ Developed with passion by **[Vath Sathya](https://github.com/vathsathya)** (`@va
 
 ### 🖥️ Windows Desktop Server (`desksound.exe`)
 - **Native Title Bar Integration:** Displays version string directly in the native Windows Title Bar (`Yanich DeskSound Server v1.0.5`).
-- **🏷️ Interactive IP Capsule Badges:** Displays local IP addresses in distinct Cyan Capsule Pill Badges (`[ 10.10.10.126 ]`).
+- **🏷️ Non-Overlapping IP Capsule Badges:** Displays local IP addresses in distinct Cyan Capsule Pill Badges (`[ 10.10.10.126 ]`) with zero text/border collisions.
 - **📋 1-Click Copy to Clipboard:** Click any IP Capsule badge to instantly copy that IP address to the Windows Clipboard with visual `"Copied!"` confirmation.
 - **🎛️ Dual-Channel Stereo Control:** Independent volume sliders (Master, Left, Right) and per-client channel selection (**Left**, **Right**, **Stereo**).
 - **📊 Live Peak Audio Visualizer:** Dual L/R peak meter bars with clipping protection.
-- **ℹ️ Built-in About & Software Updater:** Integrated dark mode About dialog displaying Khmer/English overview, developer info, and 1-click GitHub Release update checker.
-- **🚀 Windows Startup Support:** Run silently in the system tray on Windows boot with zero background CPU overhead.
+- **ℹ️ Refined Dark About Dialog:** Integrated 470x530px dark mode dialog displaying Khmer/English overview, developer info, and 1-click GitHub Release update checker with zero text clipping.
+- **🚀 Windows Startup & Silent Mode:** Run silently in the system tray on Windows boot (`-silent` / `-service`) with zero background CPU overhead.
 
 ### 📱 Android Receiver Client App (`app-release.apk`)
 - **⚡ 0-Click Auto Discovery:** Automatically scans your local Wi-Fi / USB subnet and connects instantly without typing IP addresses.
@@ -91,6 +91,14 @@ graph TD
 
 ---
 
+## ⚙️ Command-Line Arguments & Silent Startup
+
+Launch `desksound.exe` with optional flags for automated backgrounds:
+- **`desksound.exe -silent`**: Launches the server minimized directly into the Windows System Tray (no GUI popup).
+- **`desksound.exe -service`**: Background service mode.
+
+---
+
 ## 🛡️ Resource Footprint & Reliability
 
 - **Memory Leak Protection:** Pre-allocated thread-local static ring buffers eliminate runtime heap allocations.
@@ -141,7 +149,7 @@ Yes! On first launch, allow Private Network access for <code>desksound.exe</code
 
 <details>
 <summary><b>Q3: Can I run DeskSound silently on Windows Startup?</b></summary>
-Yes! Check the <b>"Run on Windows Startup"</b> checkbox in the server GUI. DeskSound will launch minimized in the system tray on Windows boot.
+Yes! Check the <b>"Run on Windows Startup"</b> checkbox in the server GUI or launch with <code>-silent</code>. DeskSound will launch minimized in the system tray on Windows boot.
 </details>
 
 ---
