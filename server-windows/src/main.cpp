@@ -1169,6 +1169,13 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         break;
     }
+    case WM_CTLCOLORSTATIC: {
+        HDC hdcStatic = (HDC)wParam;
+        SetTextColor(hdcStatic, RGB(200, 215, 235));
+        SetBkColor(hdcStatic, RGB(21, 27, 39));
+        static HBRUSH hbrCard = CreateSolidBrush(RGB(21, 27, 39));
+        return (INT_PTR)hbrCard;
+    }
     case WM_DESTROY: {
         g_hChkStartup = NULL;
         g_hChkMinToTray = NULL;
