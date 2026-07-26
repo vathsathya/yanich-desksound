@@ -406,7 +406,7 @@ class MainActivity : AppCompatActivity() {
                 binding.tvStatus.text = getString(R.string.status_disconnected)
                 binding.btnConnect.text = getString(R.string.btn_connect)
                 binding.btnConnect.isEnabled = true
-                binding.btnConnect.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_cyan))
+                binding.btnConnect.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.accent_cyan))
                 binding.pbAudioLevel.progress = 0
             }
             AudioReceiverService.State.CONNECTING -> {
@@ -414,21 +414,21 @@ class MainActivity : AppCompatActivity() {
                 binding.tvStatus.text = message ?: getString(R.string.status_connecting)
                 binding.btnConnect.text = "CANCEL"
                 binding.btnConnect.isEnabled = true
-                binding.btnConnect.setBackgroundColor(ContextCompat.getColor(this, R.color.status_connecting))
+                binding.btnConnect.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.status_connecting))
             }
             AudioReceiverService.State.STREAMING -> {
                 binding.statusDot.setBackgroundColor(ContextCompat.getColor(this, R.color.status_connected))
                 binding.tvStatus.text = getString(R.string.status_streaming)
                 binding.btnConnect.text = getString(R.string.btn_disconnect)
                 binding.btnConnect.isEnabled = true
-                binding.btnConnect.setBackgroundColor(ContextCompat.getColor(this, R.color.status_disconnected))
+                binding.btnConnect.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.status_disconnected))
             }
             AudioReceiverService.State.ERROR -> {
                 binding.statusDot.setBackgroundColor(ContextCompat.getColor(this, R.color.status_disconnected))
                 binding.tvStatus.text = message ?: "Error connecting"
                 binding.btnConnect.text = getString(R.string.btn_connect)
                 binding.btnConnect.isEnabled = true
-                binding.btnConnect.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_cyan))
+                binding.btnConnect.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.accent_cyan))
                 binding.pbAudioLevel.progress = 0
             }
         }

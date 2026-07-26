@@ -115,7 +115,13 @@ class AudioReceiverService : Service() {
         if (action == ACTION_START) {
             val ip = intent.getStringExtra(EXTRA_IP) ?: "192.168.1.100"
             val port = intent.getIntExtra(EXTRA_PORT, 5000)
-            startForeground(NOTIFICATION_ID, createNotification("Connecting to $ip:$port..."))
+            
+            val notification = createNotification("Connecting to $ip:$port...")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
             connectAndStream(ip, port)
         } else if (action == ACTION_STOP) {
             stopStreaming()
@@ -192,8 +198,20 @@ class AudioReceiverService : Service() {
             }
             if (wifiLock == null) {
                 val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "DeskSound:WifiLock")
-                wifiLock?.acquire()
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
+                wifiLock = wifiManager.createWifiLock(mode, "DeskSound:WifiLock").apply {
+                    setReferenceCounted(false)
+                }
+                try {
+                    wifiLock?.acquire()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to acquire WifiLock", e)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error acquiring locks", e)
