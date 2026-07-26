@@ -1,3 +1,4 @@
+#pragma execution_character_set("utf-8")
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
@@ -914,16 +915,21 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 68, L"គោលបំណងកម្មវិធី (App Purpose):", 29);
+        std::wstring strPurposeTitle = L"គោលបំណងកម្មវិធី (App Purpose):";
+        TextOutW(memDC, 35, 68, strPurposeTitle.c_str(), (int)strPurposeTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
-        TextOutW(memDC, 35, 96, L"DeskSound គឺជាកម្មវិធីបញ្ជូន និងទទួលសំឡេង Real-time", 52);
-        TextOutW(memDC, 35, 118, L"ដែលផ្ដល់នូវគុណភាពសំឡេងខ្ពស់ និង Latency ទាបបំផុត (Low-Latency)។", 65);
+        std::wstring strP1 = L"DeskSound គឺជាកម្មវិធីបញ្ជូន និងទទួលសំឡេង Real-time";
+        std::wstring strP2 = L"ដែលផ្ដល់នូវគុណភាពសំឡេងខ្ពស់ និង Latency ទាបបំផុត (Low-Latency)។";
+        TextOutW(memDC, 35, 96, strP1.c_str(), (int)strP1.length());
+        TextOutW(memDC, 35, 118, strP2.c_str(), (int)strP2.length());
 
         SetTextColor(memDC, RGB(140, 155, 180));
-        TextOutW(memDC, 35, 148, L"High-performance real-time wireless & USB audio streaming server.", 63);
-        TextOutW(memDC, 35, 166, L"Turns your Android smartphones into wireless PC speakers.", 57);
+        std::wstring strP3 = L"High-performance real-time wireless & USB audio streaming server.";
+        std::wstring strP4 = L"Turns your Android smartphones into wireless PC speakers.";
+        TextOutW(memDC, 35, 148, strP3.c_str(), (int)strP3.length());
+        TextOutW(memDC, 35, 166, strP4.c_str(), (int)strP4.length());
 
         // Card 2: Developer Info (អ្នកបង្កើត)
         RECT c2 = { 20, 207, rc.right - 20, 287 };
@@ -931,11 +937,13 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 220, L"អ្នកបង្កើត (Developer Info):", 27);
+        std::wstring strDevTitle = L"អ្នកបង្កើត (Developer Info):";
+        TextOutW(memDC, 35, 220, strDevTitle.c_str(), (int)strDevTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 35, 248, L"Vath Sathya (@vathsathya)", 25);
+        std::wstring strDevName = L"Vath Sathya (@vathsathya)";
+        TextOutW(memDC, 35, 248, strDevName.c_str(), (int)strDevName.length());
 
         RECT btnGitHub = { rc.right - 170, 242, rc.right - 35, 270 };
         DrawPillButtonW(memDC, btnGitHub, L"GitHub Repo", RGB(32, 40, 58), RGB(0, 229, 255));
@@ -946,7 +954,8 @@ LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, 35, 312, L"Software Update (បច្ចុប្បន្នភាព):", 33);
+        std::wstring strUpdTitle = L"Software Update (បច្ចុប្បន្នភាព):";
+        TextOutW(memDC, 35, 312, strUpdTitle.c_str(), (int)strUpdTitle.length());
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(200, 215, 235));
