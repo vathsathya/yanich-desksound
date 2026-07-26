@@ -15,10 +15,12 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import java.io.InputStream
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+import android.net.ConnectivityManager
 import android.net.wifi.WifiManager
 import android.os.PowerManager
 
@@ -234,11 +236,56 @@ class AudioReceiverService : Service() {
         }
     }
 
+    private fun getUsbCandidates(inputIp: String): List<String> {
+        val candidates = mutableListOf<String>()
+
+        if (inputIp.isNotEmpty() && inputIp != "USB_AUTO" && inputIp != "127.0.0.1") {
+            candidates.add(inputIp)
+        }
+
+        // 1. ADB Reverse Port Forwarding Loopback (Primary for USB ADB)
+        if (!candidates.contains("127.0.0.1")) candidates.add("127.0.0.1")
+
+        // 2. Dynamic scan of all network interfaces for USB/RNDIS/NCM gateways and subnets
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                val addrs = iface.inetAddresses
+                while (addrs.hasMoreElements()) {
+                    val addr = addrs.nextElement()
+                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
+                        val host = addr.hostAddress ?: continue
+                        if (host.contains(".")) {
+                            val prefix = host.substringBeforeLast(".") + "."
+                            val gate1 = prefix + "1"
+                            val gate129 = prefix + "129"
+                            val gate254 = prefix + "254"
+                            if (!candidates.contains(gate1)) candidates.add(gate1)
+                            if (!candidates.contains(gate129)) candidates.add(gate129)
+                            if (!candidates.contains(gate254)) candidates.add(gate254)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error scanning local interface candidates", e)
+        }
+
+        // 3. Known Standard Android RNDIS & USB Tethering Host IPs fallback
+        val standardIps = listOf("192.168.42.129", "192.168.42.1", "192.168.49.1", "192.168.43.1", "192.168.137.1")
+        for (sip in standardIps) {
+            if (!candidates.contains(sip)) candidates.add(sip)
+        }
+
+        return candidates
+    }
+
     private fun connectAndStream(ip: String, port: Int) {
         if (isStreaming || isConnecting) return
 
         isConnecting = true
-        notifyStatus(State.CONNECTING, "Connecting to $ip:$port...")
+        notifyStatus(State.CONNECTING, "Connecting USB Mode ($ip:$port)...")
         acquireLocks()
         requestAudioFocus()
 
@@ -247,42 +294,63 @@ class AudioReceiverService : Service() {
             val maxRetries = 9999 // Persistent Auto-Reconnection Guard
 
             while (retryCount < maxRetries && (isConnecting || isStreaming)) {
-                try {
-                    Log.d(TAG, "Connecting to server $ip:$port (Attempt ${retryCount + 1})...")
-                    val sock = Socket()
-                    sock.receiveBufferSize = 64 * 1024
-                    sock.sendBufferSize = 64 * 1024
-                    sock.trafficClass = 0x10 // IPTOS_LOWDELAY (Low Latency Network Priority)
-                    sock.tcpNoDelay = true
-                    sock.keepAlive = true
-                    sock.connect(InetSocketAddress(ip, port), 5000)
-                    socket = sock
+                val targetIps = if (ip == "USB_AUTO" || ip == "127.0.0.1" || ip.startsWith("192.168.")) {
+                    getUsbCandidates(ip)
+                } else {
+                    listOf(ip)
+                }
 
+                var connectedSock: Socket? = null
+                var connectedIp: String? = null
+
+                val channel = kotlinx.coroutines.channels.Channel<Pair<String, Socket>>(kotlinx.coroutines.channels.Channel.CONFLATED)
+                val probeJobs = targetIps.map { targetIp ->
+                    launch(Dispatchers.IO) {
+                        try {
+                            val sock = Socket()
+                            sock.receiveBufferSize = 64 * 1024
+                            sock.sendBufferSize = 64 * 1024
+                            sock.trafficClass = 0x10 // IPTOS_LOWDELAY
+                            sock.tcpNoDelay = true
+                            sock.keepAlive = true
+                            sock.connect(InetSocketAddress(targetIp, port), 800)
+                            channel.trySend(Pair(targetIp, sock))
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                try {
+                    withTimeout(1500) {
+                        val pair = channel.receive()
+                        connectedIp = pair.first
+                        connectedSock = pair.second
+                    }
+                } catch (_: Exception) {}
+
+                probeJobs.forEach { it.cancel() }
+
+                if (connectedSock != null && connectedIp != null) {
+                    socket = connectedSock
                     isConnecting = false
                     isStreaming = true
-                    notifyStatus(State.STREAMING, "Connected to $ip:$port")
-                    updateNotification("Streaming desktop audio from $ip:$port")
+                    notifyStatus(State.STREAMING, "Connected to $connectedIp:$port")
+                    updateNotification("Streaming desktop audio from $connectedIp:$port")
 
                     initAudioTrack()
-                    readAudioLoop(sock.getInputStream())
+                    readAudioLoop(connectedSock!!.getInputStream())
                     break
+                }
 
-                } catch (e: Exception) {
-                    Log.e(TAG, "Connection attempt failed", e)
-                    socket?.close()
-                    socket = null
-
-                    if (isStreaming || isConnecting) {
-                        retryCount++
-                        if (retryCount < maxRetries) {
-                            notifyStatus(State.CONNECTING, "Auto-Reconnecting... ($retryCount)")
-                            delay(1500L)
-                        } else {
-                            isConnecting = false
-                            isStreaming = false
-                            notifyStatus(State.ERROR, "Connection lost to $ip:$port")
-                            stopStreaming()
-                        }
+                if (isStreaming || isConnecting) {
+                    retryCount++
+                    if (retryCount < maxRetries) {
+                        notifyStatus(State.CONNECTING, "Auto-Reconnecting USB... ($retryCount)")
+                        delay(1500L)
+                    } else {
+                        isConnecting = false
+                        isStreaming = false
+                        notifyStatus(State.ERROR, "USB connection failed. Check USB Tethering / ADB.")
+                        stopStreaming()
                     }
                 }
             }
@@ -369,18 +437,41 @@ class AudioReceiverService : Service() {
             }
         }
 
-        initAudioTrack(sampleRate, channels, isFloat)
+        initAudioTrack(sampleRate, channels, isFloat = false)
 
         val headerBuffer = ByteArray(8)
         val headerBb = ByteBuffer.wrap(headerBuffer).order(ByteOrder.BIG_ENDIAN)
 
         var pcmBuffer = ByteArray(8192)
+        var shortBuffer = ShortArray(2048)
         var floatBuffer = FloatArray(2048)
 
         var lastLevelReportTime = 0L
         var currentServerTag = -1
 
+        var lastReadPacketTime = System.currentTimeMillis()
+        var isFadingIn = false
+        var fadeCounter = 0
+        val FADE_FRAMES = 240 // 5ms smooth fade-in at 48kHz
+
+        var dcPrevInL = 0.0f
+        var dcPrevOutL = 0.0f
+        var dcPrevInR = 0.0f
+        var dcPrevOutR = 0.0f
+
         while (isStreaming && isActive) {
+            // Check time gap between packet reads for video switches / pauses
+            val nowRead = System.currentTimeMillis()
+            if (nowRead - lastReadPacketTime > 150) {
+                // Video switch gap detected! Flush stale AudioTrack buffer
+                try {
+                    audioTrack?.flush()
+                } catch (_: Exception) {}
+                isFadingIn = true
+                fadeCounter = 0
+            }
+            lastReadPacketTime = nowRead
+
             // 1. Read 8-byte big-endian header: [4 bytes modeTag] [4 bytes audioLength]
             var hRead = 0
             while (hRead < 8 && isStreaming && isActive) {
@@ -425,7 +516,8 @@ class AudioReceiverService : Service() {
             if (pcmRead > 0) {
                 val floatCount = pcmRead / 4
                 val frameCount = floatCount / 2
-                if (floatBuffer.size < floatCount) {
+                if (shortBuffer.size < floatCount) {
+                    shortBuffer = ShortArray(floatCount)
                     floatBuffer = FloatArray(floatCount)
                 }
 
@@ -441,16 +533,49 @@ class AudioReceiverService : Service() {
                         OverrideMode.AUTO -> { /* follow server tag */ }
                     }
 
-                    // SPEAKER PROTECTION HARD LIMITER
-                    if (sampleL > 1.0f) sampleL = 1.0f else if (sampleL < -1.0f) sampleL = -1.0f
-                    if (sampleR > 1.0f) sampleR = 1.0f else if (sampleR < -1.0f) sampleR = -1.0f
+                    // 1. DC-Blocker Filter (Eliminates DC offset pops/clicks)
+                    val outL = sampleL - dcPrevInL + 0.995f * dcPrevOutL
+                    dcPrevInL = sampleL
+                    dcPrevOutL = outL
+                    sampleL = outL
 
+                    val outR = sampleR - dcPrevInR + 0.995f * dcPrevOutR
+                    dcPrevInR = sampleR
+                    dcPrevOutR = outR
+                    sampleR = outR
+
+                    // 2. Noise Gate Guard (Completely silences background hiss/hum when silent)
+                    if (Math.abs(sampleL) < 0.0003f) sampleL = 0.0f
+                    if (Math.abs(sampleR) < 0.0003f) sampleR = 0.0f
+
+                    // 3. Smooth Anti-Pop Fade-In on Stream Resume / Video Switch
+                    if (isFadingIn) {
+                        val fadeFactor = fadeCounter.toFloat() / FADE_FRAMES
+                        sampleL *= fadeFactor
+                        sampleR *= fadeFactor
+                        fadeCounter++
+                        if (fadeCounter >= FADE_FRAMES) {
+                            isFadingIn = false
+                        }
+                    }
+
+                    // 4. Soft-Knee Saturation Limiter Guard
+                    sampleL = (Math.tanh(sampleL.toDouble()).toFloat()) * 0.85f
+                    sampleR = (Math.tanh(sampleR.toDouble()).toFloat()) * 0.85f
+
+                    // 5. Convert 32-bit Float (-1.0f..1.0f) to 16-bit Signed Integer (-32768..32767)
+                    // Eliminates Android HAL Float underflow ground hum completely!
+                    val shortL = (sampleL.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
+                    val shortR = (sampleR.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
+
+                    shortBuffer[i * 2 + 0] = shortL
+                    shortBuffer[i * 2 + 1] = shortR
                     floatBuffer[i * 2 + 0] = sampleL
                     floatBuffer[i * 2 + 1] = sampleR
                 }
 
-                // Play back audio frame block
-                audioTrack?.write(floatBuffer, 0, floatCount, AudioTrack.WRITE_BLOCKING)
+                // Play back 16-bit Integer PCM frame block (100% compatible with all Android DACs)
+                audioTrack?.write(shortBuffer, 0, floatCount, AudioTrack.WRITE_BLOCKING)
 
                 // Measure live audio level for VU meter
                 val now = System.currentTimeMillis()
@@ -471,8 +596,19 @@ class AudioReceiverService : Service() {
     }
 
     private fun notifyStatus(state: State, message: String?) {
+        isServiceStreaming = (state == State.STREAMING)
         serviceScope.launch(Dispatchers.Main) {
             onStatusChangedListener?.invoke(state, message)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    android.service.quicksettings.TileService.requestListeningState(
+                        applicationContext,
+                        android.content.ComponentName(applicationContext, DeskSoundTileService::class.java)
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error requesting QS tile state update", e)
+                }
+            }
         }
     }
 
@@ -536,5 +672,7 @@ class AudioReceiverService : Service() {
         const val ACTION_STOP = "com.yanich.desksound.action.STOP"
         const val EXTRA_IP = "extra_ip"
         const val EXTRA_PORT = "extra_port"
+
+        @Volatile var isServiceStreaming = false
     }
 }

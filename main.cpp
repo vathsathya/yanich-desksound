@@ -56,6 +56,26 @@ std::string g_latestUpdateTag = "";
 std::string g_latestUpdateUrl = "https://github.com/vathsathya/yanich-desksound/releases/latest";
 extern HWND g_hwndMain;
 
+bool IsVersionNewer(const std::string& latestTag, const std::string& currentVersion) {
+    int lMajor = 0, lMinor = 0, lPatch = 0;
+    int cMajor = 0, cMinor = 0, cPatch = 0;
+
+    auto parseVer = [](const std::string& v, int& maj, int& min, int& pat) {
+        size_t start = v.find_first_of("0123456789");
+        if (start != std::string::npos) {
+            sscanf_s(v.c_str() + start, "%d.%d.%d", &maj, &min, &pat);
+        }
+    };
+    parseVer(latestTag, lMajor, lMinor, lPatch);
+    parseVer(currentVersion, cMajor, cMinor, cPatch);
+
+    if (lMajor > cMajor) return true;
+    if (lMajor < cMajor) return false;
+    if (lMinor > cMinor) return true;
+    if (lMinor < cMinor) return false;
+    return lPatch > cPatch;
+}
+
 void CheckForUpdatesAsync() {
     std::thread([]() {
         HINTERNET hSession = WinHttpOpen(L"YanichDeskSound-Server/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -101,7 +121,7 @@ void CheckForUpdatesAsync() {
                         size_t end = responseStr.find("\"", start + 1);
                         if (end != std::string::npos) {
                             std::string tag = responseStr.substr(start + 1, end - start - 1);
-                            if (tag != APP_VERSION_TAG && tag != APP_VERSION_STRING && !tag.empty()) {
+                            if (IsVersionNewer(tag, APP_VERSION_TAG) && !tag.empty()) {
                                 g_latestUpdateTag = tag;
                                 g_updateAvailable.store(true);
                                 if (g_hwndMain) {
@@ -284,12 +304,80 @@ void SetRunOnStartup(bool enable) {
     }
 }
 
+std::string GetConfigIniPath() {
+    char exePath[MAX_PATH];
+    GetModuleFileNameA(NULL, exePath, MAX_PATH);
+    std::string path(exePath);
+    size_t lastSlash = path.find_last_of("\\/");
+    if (lastSlash != std::string::npos) {
+        return path.substr(0, lastSlash + 1) + "desksound_server.ini";
+    }
+    return "desksound_server.ini";
+}
+
+void SaveServerConfig() {
+    std::string ini = GetConfigIniPath();
+    WritePrivateProfileStringA("Audio", "MasterVolume", std::to_string((int)g_masterVolume.load()).c_str(), ini.c_str());
+    WritePrivateProfileStringA("Audio", "GainL", std::to_string((int)g_gainL.load()).c_str(), ini.c_str());
+    WritePrivateProfileStringA("Audio", "GainR", std::to_string((int)g_gainR.load()).c_str(), ini.c_str());
+    WritePrivateProfileStringA("Audio", "Muted", g_isMuted.load() ? "1" : "0", ini.c_str());
+    WritePrivateProfileStringA("Audio", "MutedL", g_isMutedL.load() ? "1" : "0", ini.c_str());
+    WritePrivateProfileStringA("Audio", "MutedR", g_isMutedR.load() ? "1" : "0", ini.c_str());
+    WritePrivateProfileStringA("Audio", "SelectedDeviceIndex", std::to_string(g_selectedDeviceIndex.load()).c_str(), ini.c_str());
+}
+
+void LoadServerConfig() {
+    std::string ini = GetConfigIniPath();
+    int masterVol = GetPrivateProfileIntA("Audio", "MasterVolume", 100, ini.c_str());
+    int gainL     = GetPrivateProfileIntA("Audio", "GainL", 100, ini.c_str());
+    int gainR     = GetPrivateProfileIntA("Audio", "GainR", 100, ini.c_str());
+    int muted     = GetPrivateProfileIntA("Audio", "Muted", 0, ini.c_str());
+    int mutedL    = GetPrivateProfileIntA("Audio", "MutedL", 0, ini.c_str());
+    int mutedR    = GetPrivateProfileIntA("Audio", "MutedR", 0, ini.c_str());
+    int devIdx    = GetPrivateProfileIntA("Audio", "SelectedDeviceIndex", 0, ini.c_str());
+
+    g_masterVolume.store((float)masterVol);
+    g_gainL.store((float)gainL);
+    g_gainR.store((float)gainR);
+    g_isMuted.store(muted == 1);
+    g_isMutedL.store(mutedL == 1);
+    g_isMutedR.store(mutedR == 1);
+    g_selectedDeviceIndex.store(devIdx);
+}
+
+void EnsureFirewallRulesExist() {
+    std::thread([]() {
+        STARTUPINFOA si{};
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi{};
+
+        char cmdBuf[512];
+        strcpy_s(cmdBuf, sizeof(cmdBuf), "netsh advfirewall firewall add rule name=\"Yanich DeskSound Server\" dir=in action=allow protocol=TCP localport=5000 profile=any");
+        if (CreateProcessA(NULL, cmdBuf, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, 2000);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+
+        char cmdBuf2[512];
+        strcpy_s(cmdBuf2, sizeof(cmdBuf2), "netsh advfirewall firewall add rule name=\"Yanich DeskSound Discovery\" dir=in action=allow protocol=UDP localport=5001 profile=any");
+        if (CreateProcessA(NULL, cmdBuf2, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, 2000);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+    }).detach();
+}
+
 bool IsPrivateLocalIP(const sockaddr_in& addr) {
     const unsigned char* ip = (const unsigned char*)&(addr.sin_addr.s_addr);
-    if (ip[0] == 127) return true;
-    if (ip[0] == 10) return true;
-    if (ip[0] == 172 && (ip[1] >= 16 && ip[1] <= 31)) return true;
-    if (ip[0] == 192 && ip[1] == 168) return true;
+    if (ip[0] == 127) return true; // Loopback / ADB Reverse
+    if (ip[0] == 10) return true;  // Private Class A / USB Tethering
+    if (ip[0] == 172 && (ip[1] >= 16 && ip[1] <= 31)) return true; // Private Class B
+    if (ip[0] == 192 && ip[1] == 168) return true; // Private Class C
+    if (ip[0] == 169 && ip[1] == 254) return true; // Link-Local / USB RNDIS
     return false;
 }
 
@@ -323,6 +411,36 @@ void UdpDiscoveryThread() {
         }
     }
     closesocket(udpSocket);
+}
+
+void AutoRunAdbReverseLoop() {
+    std::string adbPath = "android-sdk\\platform-tools\\adb.exe";
+    DWORD dwAttrib = GetFileAttributesA(adbPath.c_str());
+    if (dwAttrib == INVALID_FILE_ATTRIBUTES || (dwAttrib & FILE_ATTRIBUTE_DIRECTORY)) {
+        adbPath = "adb.exe";
+    }
+
+    std::string adbCmd = "\"" + adbPath + "\" reverse tcp:5000 tcp:5000";
+
+    while (g_running) {
+        if (g_serverActive.load()) {
+            STARTUPINFOA si{};
+            si.cb = sizeof(si);
+            si.dwFlags = STARTF_USESHOWWINDOW;
+            si.wShowWindow = SW_HIDE;
+
+            PROCESS_INFORMATION pi{};
+            char cmdBuf[MAX_PATH * 2];
+            strcpy_s(cmdBuf, sizeof(cmdBuf), adbCmd.c_str());
+
+            if (CreateProcessA(NULL, cmdBuf, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                WaitForSingleObject(pi.hProcess, 1500);
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(8));
+    }
 }
 
 void FetchLocalIPAddresses() {
@@ -365,6 +483,9 @@ void KickClient(int index) {
         } else {
             g_client2IpStr = "None";
             g_client2Channel.store(CLIENT_MODE_RIGHT);
+        }
+        if (g_clientSockets.size() == 1) {
+            g_client1Channel.store(CLIENT_MODE_STEREO);
         }
     }
     if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
@@ -416,9 +537,10 @@ void AcceptClientsThread(SOCKET listenSocket) {
             const char* initModeStr = "STEREO";
             if (g_clientSockets.size() == 1) {
                 g_client1IpStr = clientIp;
-                g_client1Channel.store(CLIENT_MODE_LEFT);
-                initModeStr = "LEFT";
+                g_client1Channel.store(CLIENT_MODE_STEREO);
+                initModeStr = "STEREO";
             } else if (g_clientSockets.size() == 2) {
+                g_client1Channel.store(CLIENT_MODE_LEFT);
                 g_client2IpStr = clientIp;
                 g_client2Channel.store(CLIENT_MODE_RIGHT);
                 initModeStr = "RIGHT";
@@ -456,13 +578,28 @@ bool SendAudioPacketWithTag(SOCKET sock, uint32_t modeTag, const char* pAudioDat
     memcpy(s_sendPacketBuffer.data() + 4, &netLen, 4);
     memcpy(s_sendPacketBuffer.data() + 8, pAudioData, audioBytes);
 
-    int sent = send(sock, s_sendPacketBuffer.data(), (int)totalSize, 0);
-    if (sent == SOCKET_ERROR) {
-        int err = WSAGetLastError();
-        if (err == WSAEWOULDBLOCK) {
-            return true; // Skip frame if client socket buffer is full to prevent lag buildup
+    int totalSent = 0;
+    int toSend = (int)totalSize;
+    int retries = 0;
+
+    while (totalSent < toSend) {
+        int sent = send(sock, s_sendPacketBuffer.data() + totalSent, toSend - totalSent, 0);
+        if (sent == SOCKET_ERROR) {
+            int err = WSAGetLastError();
+            if (err == WSAEWOULDBLOCK) {
+                if (totalSent == 0) {
+                    // 0 bytes sent so far: safe to skip frame to avoid lag buildup
+                    return true;
+                }
+                // Partial frame already sent: MUST finish sending remaining bytes to preserve TCP stream framing!
+                if (++retries > 10) return false; // Stalled client socket -> disconnect
+                Sleep(1);
+                continue;
+            }
+            return false; // Socket error -> disconnect
         }
-        return false;
+        if (sent == 0) return false;
+        totalSent += sent;
     }
     return true;
 }
@@ -553,8 +690,6 @@ void WasapiAudioLoop() {
                 if (g_deviceChanged.load()) break;
 
                 if (SUCCEEDED(pCaptureClient->GetBuffer(&pData, &numFramesAvailable, &flags, NULL, NULL)) && numFramesAvailable > 0) {
-                    UINT32 bytesToRead = numFramesAvailable * g_pwfx->nBlockAlign;
-
                     bool isTestPlaying = g_isTestAudioPlaying.load();
                     DWORD nowTick = GetTickCount();
                     if (isTestPlaying) {
@@ -663,6 +798,9 @@ void WasapiAudioLoop() {
                                     g_client1Channel.store(g_client2Channel.load());
                                     g_client2IpStr = "None";
                                     g_client2Channel.store(CLIENT_MODE_RIGHT);
+                                    if (g_clientSockets.size() == 1) {
+                                        g_client1Channel.store(CLIENT_MODE_STEREO);
+                                    }
                                     if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
                                 }
                             }
@@ -679,6 +817,9 @@ void WasapiAudioLoop() {
                                     g_clientSockets.erase(g_clientSockets.begin() + 1);
                                     g_client2IpStr = "None";
                                     g_client2Channel.store(CLIENT_MODE_RIGHT);
+                                    if (g_clientSockets.size() == 1) {
+                                        g_client1Channel.store(CLIENT_MODE_STEREO);
+                                    }
                                     if (g_hwndMain) InvalidateRect(g_hwndMain, NULL, FALSE);
                                 }
                             }
@@ -865,7 +1006,7 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         if (PtInRect(&btnToggleServer, pt)) {
             bool current = g_serverActive.load();
             g_serverActive.store(!current);
-            if (!current == false) {
+            if (current) {
                 std::lock_guard<std::mutex> lock(g_clientMutex);
                 for (SOCKET s : g_clientSockets) closesocket(s);
                 g_clientSockets.clear();
@@ -997,7 +1138,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         } else if (wmId == ID_TRAY_TOGGLE_SERVER) {
             bool current = g_serverActive.load();
             g_serverActive.store(!current);
-            if (!current == false) {
+            if (current) {
                 std::lock_guard<std::mutex> lock(g_clientMutex);
                 for (SOCKET s : g_clientSockets) closesocket(s);
                 g_clientSockets.clear();
@@ -1132,7 +1273,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SetBkMode(memDC, TRANSPARENT);
 
-        HFONT oldFont = (HFONT)SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        (HFONT)SelectObject(memDC, g_hFontTitle ? g_hFontTitle : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
         SetTextColor(memDC, RGB(255, 255, 255));
         TextOutW(memDC, 20, 20, L"Yanich DeskSound", 16);
 
@@ -1431,6 +1572,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
 
     case WM_DESTROY: {
+        SaveServerConfig();
         g_running = false;
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
         KillTimer(hwnd, 1);
@@ -1467,6 +1609,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     CoInitialize(NULL);
     InitFonts();
+    LoadServerConfig();
+    EnsureFirewallRulesExist();
+
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return -1;
 
@@ -1501,6 +1646,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     std::thread audioThread(WasapiAudioLoop);
     audioThread.detach();
+
+    std::thread adbThread(AutoRunAdbReverseLoop);
+    adbThread.detach();
 
     g_hbrClassBg = CreateSolidBrush(RGB(18, 22, 33));
 

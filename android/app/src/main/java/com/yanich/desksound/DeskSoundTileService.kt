@@ -19,7 +19,8 @@ class DeskSoundTileService : TileService() {
         super.onClick()
         val tile = qsTile ?: return
 
-        if (tile.state == Tile.STATE_ACTIVE) {
+        val isStreaming = AudioReceiverService.isServiceStreaming
+        if (isStreaming || tile.state == Tile.STATE_ACTIVE) {
             // Stop Audio Streaming
             val intent = Intent(this, AudioReceiverService::class.java).apply {
                 action = AudioReceiverService.ACTION_STOP
@@ -39,8 +40,9 @@ class DeskSoundTileService : TileService() {
 
     private fun updateTileState() {
         val tile = qsTile ?: return
-        tile.state = Tile.STATE_INACTIVE
-        tile.label = "DeskSound"
+        val isStreaming = AudioReceiverService.isServiceStreaming
+        tile.state = if (isStreaming) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.label = if (isStreaming) "DeskSound (Streaming)" else "DeskSound (Off)"
         tile.icon = Icon.createWithResource(this, R.mipmap.ic_launcher)
         tile.updateTile()
     }
