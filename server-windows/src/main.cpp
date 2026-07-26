@@ -300,7 +300,8 @@ void CleanupFonts() {
 }
 
 enum DragTarget { DRAG_NONE, DRAG_MASTER, DRAG_GAIN_L, DRAG_GAIN_R };
-DragTarget g_activeDrag = DRAG_NONE;
+bool IsOptimizeVolumeEnabled();
+void SetOptimizeVolumeEnabled(bool enable);
 
 bool IsRunOnStartupEnabled() {
     HKEY hKey;
