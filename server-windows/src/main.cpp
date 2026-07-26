@@ -918,7 +918,6 @@ void DrawPillButtonW(HDC hdc, RECT rect, const wchar_t* label, COLORREF bgCol = 
     SelectObject(hdc, oldF);
 }
 
-HWND g_hwndAbout = NULL;
 std::atomic<bool> g_isCheckingUpdateInAbout{ false };
 
 LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
