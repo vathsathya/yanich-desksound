@@ -1,6 +1,6 @@
 $rootDir = Resolve-Path "$PSScriptRoot\.."
 $versionPath = "$rootDir\version.txt"
-$headerPath = "$rootDir\server-windows\include\version.h"
+$headerPath = "$rootDir\server\include\version.h"
 
 if (Test-Path $versionPath) {
     $v = (Get-Content $versionPath -Raw).Trim()
