@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
     }
 
     LOG_INFO("==================================================");
-    LOG_INFO(" 🔊 Yanich DeskSound Linux Server v1.2.1");
+    LOG_INFO(" 🔊 Yanich DeskSound Linux Server v1.2.0");
     LOG_INFO("==================================================");
 
     // Initialize PulseAudio Capture
