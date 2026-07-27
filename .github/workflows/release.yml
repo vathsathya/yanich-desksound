@@ -1,0 +1,130 @@
+name: Multi-Platform Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-and-android:
+    name: Build Windows & Android Binaries
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Compiler Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Sync Version Header
+        shell: powershell
+        run: |
+          .\scripts\sync_version.ps1
+
+      - name: Build Windows Server GUI (.exe)
+        shell: powershell
+        run: |
+          $ver = (Get-Content version.txt -Raw).Trim()
+          Set-Location server-windows
+          rc.exe /fo resources\resource.res /Iinclude resources\resource.rc
+          cl.exe /utf-8 /EHsc /std:c++17 src\main.cpp resources\resource.res /Iinclude /Fe:..\desksound.exe /link /subsystem:windows
+          Set-Location ..
+          if (Test-Path desksound.exe) {
+              Copy-Item -Path desksound.exe -Destination "yanich-desksound_v$ver.exe" -Force
+              Write-Host "[+] Compiled Windows Server: yanich-desksound_v$ver.exe"
+          } else {
+              throw "[-] Failed to compile desksound.exe"
+          }
+
+      - name: Setup Java 17 for Android Build
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build Android Receiver Client (.apk)
+        shell: powershell
+        run: |
+          $ver = (Get-Content version.txt -Raw).Trim()
+          Set-Location client-android
+          .\gradlew.bat assembleRelease
+          Set-Location ..
+          $expectedApk = "client-android\app\build\outputs\apk\release\yanich-desksound_v$ver.apk"
+          if (Test-Path $expectedApk) {
+              Copy-Item -Path $expectedApk -Destination "yanich-desksound_v$ver.apk" -Force
+              Write-Host "[+] Found APK: yanich-desksound_v$ver.apk"
+          } else {
+              $anyApk = Get-ChildItem "client-android\app\build\outputs\apk\release\*.apk" | Select-Object -First 1
+              if ($anyApk) {
+                  Copy-Item -Path $anyApk.FullName -Destination "yanich-desksound_v$ver.apk" -Force
+                  Write-Host "[+] Copied fallback APK to yanich-desksound_v$ver.apk"
+              } else {
+                  throw "[-] Android APK build output not found!"
+              }
+          }
+
+      - name: Upload Windows & Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-and-android-assets
+          path: |
+            yanich-desksound_v*.exe
+            yanich-desksound_v*.apk
+
+  build-linux:
+    name: Build Linux Server Binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpulse-dev build-essential cmake
+
+      - name: Compile Linux Server Binary
+        run: |
+          chmod +x scripts/build_linux.sh
+          bash scripts/build_linux.sh
+
+      - name: Upload Linux Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-assets
+          path: yanich-desksound_v*-linux-x64
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows-and-android, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows & Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-and-android-assets
+          path: ./release-assets
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-assets
+          path: ./release-assets
+
+      - name: Display Prepared Assets
+        run: |
+          echo "Assets ready for release:"
+          ls -la ./release-assets
+
+      - name: Create / Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./release-assets/*
+          name: Yanich DeskSound ${{ github.ref_name }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
