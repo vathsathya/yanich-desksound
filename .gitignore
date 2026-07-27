@@ -3,6 +3,9 @@
 *.apk
 *.zip
 *.jar
+!gradle-wrapper.jar
+!client-android/gradle/wrapper/gradle-wrapper.jar
+
 *.tar.gz
 
 # C++ MSVC & GCC Build Outputs
