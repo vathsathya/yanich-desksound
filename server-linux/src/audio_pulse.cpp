@@ -12,7 +12,7 @@ bool PulseAudioRecorder::StartCapture(std::function<void(const uint8_t*, size_t)
 
     m_callback = audioCallback;
     static const pa_sample_spec ss = {
-        .format = PA_SAMPLE_S16LE,
+        .format = PA_SAMPLE_FLOAT32LE,
         .rate = 48000,
         .channels = 2
     };
@@ -27,7 +27,7 @@ bool PulseAudioRecorder::StartCapture(std::function<void(const uint8_t*, size_t)
 
     m_isCapturing = true;
     m_captureThread = std::thread(&PulseAudioRecorder::CaptureLoop, this);
-    std::cout << "[PulseAudio] Capture loopback started at 48000Hz 16-bit Stereo." << std::endl;
+    std::cout << "[PulseAudio] Capture loopback started at 48000Hz 32-bit Float Stereo." << std::endl;
     return true;
 }
 

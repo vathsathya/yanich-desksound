@@ -56,9 +56,20 @@ void UDPDiscoveryServer() {
 }
 
 void BroadcastAudioChunk(const uint8_t* data, size_t size) {
+    if (size == 0) return;
+
+    // 8-byte big-endian framing header: [4 bytes modeTag (0=STEREO)] [4 bytes audioLength]
+    uint32_t netTag = htonl(0);
+    uint32_t netLen = htonl((uint32_t)size);
+
+    std::vector<uint8_t> packetBuffer(8 + size);
+    memcpy(packetBuffer.data(), &netTag, 4);
+    memcpy(packetBuffer.data() + 4, &netLen, 4);
+    memcpy(packetBuffer.data() + 8, data, size);
+
     std::lock_guard<std::mutex> lock(g_clientMutex);
     for (auto it = g_clientSockets.begin(); it != g_clientSockets.end(); ) {
-        ssize_t sent = send(*it, data, size, MSG_NOSIGNAL);
+        ssize_t sent = send(*it, packetBuffer.data(), packetBuffer.size(), MSG_NOSIGNAL);
         if (sent < 0) {
             close(*it);
             it = g_clientSockets.erase(it);
@@ -118,6 +129,14 @@ int main() {
             inet_ntop(AF_INET, &clientAddr.sin_addr, clientIp, INET_ADDRSTRLEN);
             std::cout << "[Linux Server] Client Connected: " << clientIp << std::endl;
             
+            // Send 32-byte format handshake expected by DeskSound receiver client
+            char formatHeader[33] = {0};
+            snprintf(formatHeader, sizeof(formatHeader), "FORMAT|48000|2|32|STEREO");
+            size_t headerLen = strlen(formatHeader);
+            for (size_t i = headerLen; i < 32; ++i) formatHeader[i] = ' ';
+            formatHeader[32] = '\0';
+            send(clientSock, formatHeader, 32, MSG_NOSIGNAL);
+
             std::lock_guard<std::mutex> lock(g_clientMutex);
             g_clientSockets.push_back(clientSock);
         }
