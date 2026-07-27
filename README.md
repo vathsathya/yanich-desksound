@@ -57,14 +57,14 @@ graph TD
 
 ## 🚀 Downloads & User Guide
 
-### 📦 Latest Release Assets
+### 📦 Latest Release Assets (v1.2.1)
 
 | Component | Asset File | File Size | Description |
 | :--- | :--- | :--- | :--- |
 | 🐧 **Linux Production Package** | [`yanich-desksound_v1.2.1-linux-x64.tar.gz`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1-linux-x64.tar.gz) | **~800 KB** | Linux Desktop Installer Package *(App Launcher Shortcut + Binary)* |
 | 🐧 **Linux Standalone Binary** | [`yanich-desksound_v1.2.1-linux-x64`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1-linux-x64) | **2.2 MB** | Portable Executable *(Direct run without installation)* |
-| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.0.15.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.15/yanich-desksound_v1.0.15.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
-| 📱 **Android Receiver App** | [`yanich-desksound_v1.0.15.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.0.15/yanich-desksound_v1.0.15.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
+| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.2.1.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
+| 📱 **Android Receiver App** | [`yanich-desksound_v1.2.1.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
 
 ---
 

@@ -4,7 +4,7 @@ plugins {
 }
 
 def versionFile = file("${rootDir}/../version.txt")
-def appVersionName = versionFile.exists() ? versionFile.text.trim() : "1.0.2"
+def appVersionName = versionFile.exists() ? versionFile.text.trim() : "1.2.1"
 def versionParts = appVersionName.split("\\.")
 def appVersionCode = (versionParts.length >= 3) ? (versionParts[0].toInteger() * 100 + versionParts[1].toInteger() * 10 + versionParts[2].toInteger()) : 3
 

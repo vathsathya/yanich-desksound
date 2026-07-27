@@ -160,9 +160,9 @@ class MainActivity : AppCompatActivity() {
         updateNetworkAndAudioRouteInfo()
 
         val ver = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.3"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.1"
         } catch (e: Exception) {
-            "1.0.3"
+            "1.2.1"
         }
         binding.tvInfoAppVersion.text = "Version v$ver • Real-Time Audio Receiver"
 
@@ -524,9 +524,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkForUpdates(manualCheck: Boolean = false) {
         val currentVerStr = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.3"
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.1"
         } catch (e: Exception) {
-            "1.0.3"
+            "1.2.1"
         }
 
         if (manualCheck) {

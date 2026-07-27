@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 
 $rootDir = Resolve-Path "$PSScriptRoot\.."
 $versionPath = "$rootDir\version.txt"
-$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "1.0.7" }
+$versionStr = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "1.2.1" }
 
 if ([string]::IsNullOrWhiteSpace($TagName)) {
     $TagName = "v$versionStr"
@@ -58,7 +58,7 @@ $bodyJson = @{
     tag_name         = $TagName
     target_commitish = "main"
     name             = $ReleaseName
-    body             = "## Yanich DeskSound ${TagName} Official Release`n`n**Full Release Assets:**`n- yanich-desksound_${TagName}.exe (Windows Desktop Server GUI)`n- yanich-desksound_${TagName}.apk (Android Receiver App)`n`n**Key Fixes & Enhancements in ${TagName}:**`n- **Enterprise Codebase Structure**: Restructured into modular platform directories (`server-windows/`, `server-linux/`, `client-android/`, `scripts/`).`n- **Android High-Performance Lock**: Added `WIFI_MODE_FULL_LOW_LATENCY` & `PARTIAL_WAKE_LOCK` for zero Doze mode background throttling.`n- **Mouse Pointer Hover Fix**: Native Windows Arrow (`IDC_ARROW`) by default with precise Hand (`IDC_HAND`) hover feedback.`n`nCreated by Vath Sathya."
+    body             = "## Yanich DeskSound ${TagName} Official Release`n`n**Full Release Assets:**`n- yanich-desksound_${TagName}.exe (Windows Desktop Server GUI)`n- yanich-desksound_${TagName}.apk (Android Receiver App)`n`nCreated by Vath Sathya."
     draft            = $false
     prerelease       = $false
 } | ConvertTo-Json

@@ -746,7 +746,7 @@
                                     android:id="@+id/tvInfoAppVersion"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Version 1.0.3 • Real-Time Audio Receiver"
+                                    android:text="Version 1.2.1 • Real-Time Audio Receiver"
                                     android:textColor="@color/primary"
                                     android:textSize="12sp"
                                     android:layout_marginTop="2dp" />

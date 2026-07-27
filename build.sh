@@ -10,7 +10,7 @@ echo " 🔊 Yanich DeskSound - All-in-One Master Build & Publish Pipeline (Linux
 echo "======================================================================="
 
 VERSION_FILE="$ROOT_DIR/version.txt"
-VERSION_STR=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '\r\n' || echo "1.0.7")
+VERSION_STR=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '\r\n' || echo "1.2.1")
 TAG_NAME="v${VERSION_STR}"
 
 echo "[!] Target Release Version: ${TAG_NAME}"
