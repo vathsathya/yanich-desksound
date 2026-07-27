@@ -41,7 +41,7 @@ HEADERS=(
 
 # 3. Check for existing release
 TAG_RELEASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${TAG_NAME}"
-EXISTING_RELEASE_ID=$(curl -s "${HEADERS[@]}" "${TAG_RELEASE_URL}" | grep '"id":' | head -n 1 | awk '{print $2}' | tr -d ',')
+EXISTING_RELEASE_ID=$(curl -s "${HEADERS[@]}" "${TAG_RELEASE_URL}" | grep -E '"id": [0-9]+' | head -n 1 | awk '{print $2}' | tr -d ',')
 
 if [ -n "$EXISTING_RELEASE_ID" ] && [ "$EXISTING_RELEASE_ID" != "null" ]; then
     echo "[!] Deleting existing release ID ${EXISTING_RELEASE_ID} for ${TAG_NAME}..."
