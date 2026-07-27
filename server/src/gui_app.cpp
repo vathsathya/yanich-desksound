@@ -105,7 +105,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // --- 2. GROUP 1: AUDIO CONTROLS & DUAL VU METERS ---
     ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "AUDIO CONTROLS & DUAL VU METERS");
-    ImGui::BeginChild("AudioCard", ImVec2(0, 250), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("AudioCard", ImVec2(0, 240), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     bool isServerActive = NetworkServer::Instance().IsActive();
     auto clients = NetworkServer::Instance().GetClients();
@@ -155,55 +155,55 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // Row 1: Master Volume Slider
     ImGui::Text("Master:");
-    ImGui::SameLine(90.0f);
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 130.0f);
+    ImGui::SameLine(105.0f);
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 70.0f);
     if (ImGui::SliderFloat("##MasterVol", &cfg.masterVolume, 0.0f, 100.0f, "%.0f%%")) {
         cfgChanged = true;
     }
     ImGui::SameLine();
     if (cfg.isMuted) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
-        if (ImGui::Button("Muted##M", ImVec2(65.0f, 0))) { cfg.isMuted = false; cfgChanged = true; }
+        if (ImGui::Button("Muted##M", ImVec2(60.0f, 0))) { cfg.isMuted = false; cfgChanged = true; }
         ImGui::PopStyleColor();
     } else {
-        if (ImGui::Button("Mute##M", ImVec2(65.0f, 0))) { cfg.isMuted = true; cfgChanged = true; }
+        if (ImGui::Button("Mute##M", ImVec2(60.0f, 0))) { cfg.isMuted = true; cfgChanged = true; }
     }
 
     // Row 2: Gain Left Slider
     ImGui::Text("Gain L:");
-    ImGui::SameLine(90.0f);
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 130.0f);
+    ImGui::SameLine(105.0f);
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 70.0f);
     if (ImGui::SliderFloat("##GainL", &cfg.gainL, 0.0f, 100.0f, "%.0f%%")) {
         cfgChanged = true;
     }
     ImGui::SameLine();
     if (cfg.isMutedL) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
-        if (ImGui::Button("Mute L##L", ImVec2(65.0f, 0))) { cfg.isMutedL = false; cfgChanged = true; }
+        if (ImGui::Button("Mute L##L", ImVec2(60.0f, 0))) { cfg.isMutedL = false; cfgChanged = true; }
         ImGui::PopStyleColor();
     } else {
-        if (ImGui::Button("Mute L##L", ImVec2(65.0f, 0))) { cfg.isMutedL = true; cfgChanged = true; }
+        if (ImGui::Button("Mute L##L", ImVec2(60.0f, 0))) { cfg.isMutedL = true; cfgChanged = true; }
     }
 
     // Row 3: Gain Right Slider
     ImGui::Text("Gain R:");
-    ImGui::SameLine(90.0f);
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 130.0f);
+    ImGui::SameLine(105.0f);
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 70.0f);
     if (ImGui::SliderFloat("##GainR", &cfg.gainR, 0.0f, 100.0f, "%.0f%%")) {
         cfgChanged = true;
     }
     ImGui::SameLine();
     if (cfg.isMutedR) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
-        if (ImGui::Button("Mute R##R", ImVec2(65.0f, 0))) { cfg.isMutedR = false; cfgChanged = true; }
+        if (ImGui::Button("Mute R##R", ImVec2(60.0f, 0))) { cfg.isMutedR = false; cfgChanged = true; }
         ImGui::PopStyleColor();
     } else {
-        if (ImGui::Button("Mute R##R", ImVec2(65.0f, 0))) { cfg.isMutedR = true; cfgChanged = true; }
+        if (ImGui::Button("Mute R##R", ImVec2(60.0f, 0))) { cfg.isMutedR = true; cfgChanged = true; }
     }
 
     // Row 4: Audio Source Device Dropdown
     ImGui::Text("Audio Source:");
-    ImGui::SameLine(110.0f);
+    ImGui::SameLine(105.0f);
     auto devices = audioBackend ? audioBackend->EnumerateDevices() : std::vector<AudioDeviceInfo>{};
     std::string currentDevName = (cfg.selectedDeviceIndex >= 0 && cfg.selectedDeviceIndex < (int)devices.size()) ? devices[cfg.selectedDeviceIndex].name : "Default Playback Device";
     
@@ -223,7 +223,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // Row 5: Buffer Size Selector Dropdown
     ImGui::Text("Buffer Size:");
-    ImGui::SameLine(110.0f);
+    ImGui::SameLine(105.0f);
     const char* bufferItems[] = {
         "128 samples (~2.6ms, Instant)",
         "256 samples (~5.3ms, Low)",
@@ -263,10 +263,10 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     // --- 3. GROUP 2: NETWORK & CONNECTED CLIENTS ---
     ImGui::Spacing();
     ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "NETWORK & CONNECTED CLIENTS");
-    ImGui::BeginChild("NetCard", ImVec2(0, 95), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("NetCard", ImVec2(0, 90), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     ImGui::Text("Server IP:");
-    ImGui::SameLine();
+    ImGui::SameLine(105.0f);
     auto ips = NetworkServer::Instance().GetLocalIPs();
     static int copiedIdx = -1;
     for (size_t idx = 0; idx < ips.size() && idx < 3; ++idx) {
@@ -284,10 +284,10 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     } else {
         for (size_t i = 0; i < clients.size(); ++i) {
             ImGui::Text("Client #%d: %s", clients[i].id, clients[i].ip.c_str());
-            ImGui::SameLine(ImGui::GetContentRegionAvail().x - 140.0f);
+            ImGui::SameLine(ImGui::GetContentRegionAvail().x - 130.0f);
 
             const char* modes[] = { "L+R", "L", "R" };
-            ImGui::SetNextItemWidth(65.0f);
+            ImGui::SetNextItemWidth(60.0f);
             std::string comboId = "##Mode" + std::to_string(i);
             if (ImGui::BeginCombo(comboId.c_str(), modes[(int)clients[i].channelMode])) {
                 for (int m = 0; m < 3; ++m) {
@@ -326,14 +326,14 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     }
 
     // --- 5. DEDICATED BOTTOM DOCKED STATUS BAR ---
-    ImGui::SetCursorPos(ImVec2(0.0f, ImGui::GetWindowHeight() - 32.0f));
+    ImGui::SetCursorPos(ImVec2(0.0f, ImGui::GetWindowHeight() - 30.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.04f, 0.06f, 0.10f, 1.00f)); // #090d16 Deep Dark Status Bar
 
-    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), 32.0f), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), 30.0f), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    ImGui::SetCursorPosX(12.0f);
+    ImGui::SetCursorPos(ImVec2(12.0f, 6.0f));
     if (isServerActive) {
         ImGui::TextColored(ImVec4(0.06f, 0.73f, 0.49f, 1.00f), "RUNNING (Port 5000)");
     } else {
