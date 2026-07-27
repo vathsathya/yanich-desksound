@@ -65,11 +65,12 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
 
-    // Root Main Window Flags - Allow main window vertical scrollbar if viewport height is too small
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
                                    ImGuiWindowFlags_NoResize |
                                    ImGuiWindowFlags_NoMove |
                                    ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_NoScrollbar |
+                                   ImGuiWindowFlags_NoScrollWithMouse |
                                    ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     ImGui::Begin("YanichDeskSoundMain", nullptr, windowFlags);
@@ -111,11 +112,11 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     }
     ImGui::SameLine();
     if (GhostButton("Settings", ImVec2(75.0f, 30.0f))) {
-        // Settings Action
+        // Settings Modal / Focus
     }
     ImGui::SameLine();
     if (GhostButton("About", ImVec2(65.0f, 30.0f))) {
-        // About Action
+        // About Dialog
     }
     ImGui::EndGroup();
 
@@ -123,11 +124,8 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // CARD FLAGS: Zero internal scrollbars inside cards
-    ImGuiWindowFlags cardFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-
-    // --- 2. CARD 1: AUDIO CONTROLS (Top Main Card - Dynamic Auto Height, No Internal Scrollbar) ---
-    ImGui::BeginChild("AudioCard", ImVec2(0, 285), true, cardFlags);
+    // --- 2. CARD 1: AUDIO CONTROLS (Top Card - 20px Padding) ---
+    ImGui::BeginChild("AudioCard", ImVec2(0, 275), true, ImGuiWindowFlags_NoScrollbar);
     
     CardHeader("(((o)))", "Audio Controls");
 
@@ -265,14 +263,11 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::Spacing();
 
-    // --- 3. RESPONSIVE GRID: CARD 2 (NETWORK) & CARD 3 (PERFORMANCE) ---
-    float availW = ImGui::GetContentRegionAvail().x;
-    bool isWideLayout = (availW >= 780.0f);
+    // --- 3. TWO-COLUMN SPLIT (CARD 2: NETWORK & CARD 3: PERFORMANCE) ---
+    float splitW = (ImGui::GetContentRegionAvail().x - 16.0f) * 0.5f;
 
-    float card23W = isWideLayout ? (availW - 16.0f) * 0.5f : availW;
-
-    // LEFT / TOP: CARD 2 (NETWORK)
-    ImGui::BeginChild("NetworkCard", ImVec2(card23W, 280), true, cardFlags);
+    // LEFT COLUMN: CARD 2 (NETWORK)
+    ImGui::BeginChild("NetworkCard", ImVec2(splitW, 280), true);
     CardHeader("[NET]", "Network");
 
     ImGui::TextColored(TextSecondary, "Server IP");
@@ -305,14 +300,10 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::EndChild();
 
-    if (isWideLayout) {
-        ImGui::SameLine();
-    } else {
-        ImGui::Spacing();
-    }
+    ImGui::SameLine();
 
-    // RIGHT / BOTTOM: CARD 3 (PERFORMANCE)
-    ImGui::BeginChild("PerfCard", ImVec2(card23W, 280), true, cardFlags);
+    // RIGHT COLUMN: CARD 3 (PERFORMANCE)
+    ImGui::BeginChild("PerfCard", ImVec2(splitW, 280), true);
     CardHeader("[PERF]", "Performance");
 
     static float cpuHistory[20] = { 2, 3, 4, 3, 2, 4, 5, 3, 2, 3, 4, 3, 2, 3, 4, 5, 3, 2, 3, 4 };
@@ -373,7 +364,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, BgSecondary);
 
-    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), StatusBarHeight), false, cardFlags);
+    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), StatusBarHeight), false, ImGuiWindowFlags_NoScrollbar);
 
     ImGui::SetCursorPos(ImVec2(16.0f, 7.0f));
     StatusPill(isServerActive);
