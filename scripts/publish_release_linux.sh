@@ -42,9 +42,10 @@ HEADERS=(
 # 3. Check for existing release
 RELEASES_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
 TAG_RELEASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${TAG_NAME}"
-EXISTING_RELEASE_ID=$(curl -s "${HEADERS[@]}" "${TAG_RELEASE_URL}" | grep -E '"id": [0-9]+' | head -n 1 | awk '{print $2}' | tr -d ',')
+RELEASE_INFO=$(curl -s "${HEADERS[@]}" "${TAG_RELEASE_URL}" || true)
+EXISTING_RELEASE_ID=$(echo "$RELEASE_INFO" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('id', ''))" 2>/dev/null || true)
 
-if [ -n "$EXISTING_RELEASE_ID" ] && [ "$EXISTING_RELEASE_ID" != "null" ]; then
+if [ -n "$EXISTING_RELEASE_ID" ] && [ "$EXISTING_RELEASE_ID" != "None" ]; then
     echo "[!] Deleting existing release ID ${EXISTING_RELEASE_ID} for ${TAG_NAME}..."
     curl -s -X DELETE "${HEADERS[@]}" "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/${EXISTING_RELEASE_ID}" > /dev/null
 fi
@@ -66,8 +67,8 @@ EOF
 )
 
 RELEASE_RESPONSE=$(curl -s -X POST "${HEADERS[@]}" -H "Content-Type: application/json" -d "${CREATE_JSON}" "${RELEASES_URL}")
-UPLOAD_URL=$(echo "$RELEASE_RESPONSE" | grep "\"upload_url\":" | head -n 1 | cut -d'"' -f4 | cut -d'{' -f1)
-HTML_URL=$(echo "$RELEASE_RESPONSE" | grep "\"html_url\":" | head -n 1 | cut -d'"' -f4)
+UPLOAD_URL=$(echo "$RELEASE_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('upload_url', '').split('{')[0])" 2>/dev/null || true)
+HTML_URL=$(echo "$RELEASE_RESPONSE" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('html_url', ''))" 2>/dev/null || true)
 
 if [ -z "$UPLOAD_URL" ]; then
     echo "[-] ERROR: Failed to create GitHub release."
