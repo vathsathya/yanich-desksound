@@ -40,6 +40,7 @@ HEADERS=(
 )
 
 # 3. Check for existing release
+RELEASES_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
 TAG_RELEASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${TAG_NAME}"
 EXISTING_RELEASE_ID=$(curl -s "${HEADERS[@]}" "${TAG_RELEASE_URL}" | grep -E '"id": [0-9]+' | head -n 1 | awk '{print $2}' | tr -d ',')
 
