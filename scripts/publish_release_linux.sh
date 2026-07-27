@@ -9,7 +9,7 @@ REPO_OWNER="vathsathya"
 REPO_NAME="yanich-desksound"
 
 VERSION_FILE="$ROOT_DIR/version.txt"
-VERSION_STR=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '\r\n' || echo "1.0.7")
+VERSION_STR=$(cat "$VERSION_FILE" 2>/dev/null | tr -d '\r\n' || echo "1.2.1")
 TAG_NAME="v${VERSION_STR}"
 RELEASE_NAME="Yanich DeskSound ${TAG_NAME}"
 
@@ -17,7 +17,7 @@ echo "=================================================="
 echo " 🚀 Publishing Linux Release ${TAG_NAME} to GitHub"
 echo "=================================================="
 
-# 1. Build Linux Binary
+# 1. Build Linux Binary & Tarball Package
 bash "$SCRIPT_DIR/build_linux.sh"
 
 # 2. Retrieve GitHub Token
@@ -52,7 +52,7 @@ fi
 
 # 4. Create Release
 echo "[+] Creating GitHub Release ${TAG_NAME}..."
-RELEASE_BODY="## Yanich DeskSound ${TAG_NAME} Official Release\n\n**Release Assets:**\n- yanich-desksound_${TAG_NAME}-linux-x64 (Ubuntu / Linux Desktop Server)\n- yanich-desksound_${TAG_NAME}.exe (Windows Desktop Server GUI)\n- yanich-desksound_${TAG_NAME}.apk (Android Receiver Client App)\n\nCreated by Vath Sathya."
+RELEASE_BODY="## Yanich DeskSound ${TAG_NAME} Official Release\n\n**Release Assets:**\n- yanich-desksound_${TAG_NAME}-linux-x64.tar.gz (Production Installer Package for Linux Desktop)\n- yanich-desksound_${TAG_NAME}-linux-x64 (Standalone Executable Binary)\n- yanich-desksound_${TAG_NAME}.exe (Windows Desktop Server GUI)\n- yanich-desksound_${TAG_NAME}.apk (Android Receiver Client App)\n\nCreated by Vath Sathya."
 
 CREATE_JSON=$(cat <<EOF
 {
@@ -78,17 +78,29 @@ fi
 
 echo "[+] Release created successfully: ${HTML_URL}"
 
-# 5. Upload Linux Asset
+# 5. Upload Linux Assets (Tarball & Binary)
 BIN_PATH="$ROOT_DIR/yanich-desksound_${TAG_NAME}-linux-x64"
-ASSET_NAME="yanich-desksound_${TAG_NAME}-linux-x64"
+BIN_ASSET_NAME="yanich-desksound_${TAG_NAME}-linux-x64"
+
+TAR_PATH="$ROOT_DIR/yanich-desksound_${TAG_NAME}-linux-x64.tar.gz"
+TAR_ASSET_NAME="yanich-desksound_${TAG_NAME}-linux-x64.tar.gz"
+
+if [ -f "$TAR_PATH" ]; then
+    echo "[+] Uploading Linux installer package archive: ${TAR_ASSET_NAME}..."
+    curl -s -X POST "${HEADERS[@]}" \
+        -H "Content-Type: application/gzip" \
+        --data-binary "@${TAR_PATH}" \
+        "${UPLOAD_URL}?name=${TAR_ASSET_NAME}" > /dev/null
+    echo "[+] Uploaded ${TAR_ASSET_NAME} successfully!"
+fi
 
 if [ -f "$BIN_PATH" ]; then
-    echo "[+] Uploading Linux binary asset: ${ASSET_NAME}..."
+    echo "[+] Uploading Linux standalone binary asset: ${BIN_ASSET_NAME}..."
     curl -s -X POST "${HEADERS[@]}" \
         -H "Content-Type: application/octet-stream" \
         --data-binary "@${BIN_PATH}" \
-        "${UPLOAD_URL}?name=${ASSET_NAME}" > /dev/null
-    echo "[+] Uploaded ${ASSET_NAME} successfully!"
+        "${UPLOAD_URL}?name=${BIN_ASSET_NAME}" > /dev/null
+    echo "[+] Uploaded ${BIN_ASSET_NAME} successfully!"
 fi
 
 echo "=================================================="
