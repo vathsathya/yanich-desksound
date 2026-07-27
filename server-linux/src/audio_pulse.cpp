@@ -19,7 +19,11 @@ bool PulseAudioRecorder::StartCapture(std::function<void(const uint8_t*, size_t)
 
     int error = 0;
     // Capture from default monitor sink (system audio output loopback)
-    m_paSimple = pa_simple_new(NULL, "Yanich DeskSound", PA_STREAM_RECORD, NULL, "Audio Loopback Capture", &ss, NULL, NULL, &error);
+    m_paSimple = pa_simple_new(NULL, "Yanich DeskSound", PA_STREAM_RECORD, "@DEFAULT_MONITOR@", "Audio Loopback Capture", &ss, NULL, NULL, &error);
+    if (!m_paSimple) {
+        std::cerr << "[PulseAudio] Info: @DEFAULT_MONITOR@ fallback to default source..." << std::endl;
+        m_paSimple = pa_simple_new(NULL, "Yanich DeskSound", PA_STREAM_RECORD, NULL, "Audio Loopback Capture", &ss, NULL, NULL, &error);
+    }
     if (!m_paSimple) {
         std::cerr << "[PulseAudio] Error opening loopback stream: " << pa_strerror(error) << std::endl;
         return false;
