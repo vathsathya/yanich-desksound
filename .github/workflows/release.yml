@@ -26,19 +26,18 @@ jobs:
           .\scripts\sync_version.ps1
 
       - name: Build Windows Server GUI (.exe)
-        shell: powershell
+        shell: cmd
         run: |
-          $ver = (Get-Content version.txt -Raw).Trim()
-          Set-Location server-windows
+          set /p VERSION=<version.txt
+          cd server-windows
           rc.exe /fo resources\resource.res /Iinclude resources\resource.rc
           cl.exe /utf-8 /EHsc /std:c++17 src\main.cpp resources\resource.res /Iinclude /Fe:..\desksound.exe /link /subsystem:windows
-          Set-Location ..
-          if (Test-Path desksound.exe) {
-              Copy-Item -Path desksound.exe -Destination "yanich-desksound_v$ver.exe" -Force
-              Write-Host "[+] Compiled Windows Server: yanich-desksound_v$ver.exe"
-          } else {
-              throw "[-] Failed to compile desksound.exe"
-          }
+          cd ..
+          if exist desksound.exe (
+              copy /Y desksound.exe yanich-desksound_v%VERSION%.exe
+          ) else (
+              exit /b 1
+          )
 
       - name: Setup Java 17 for Android Build
         uses: actions/setup-java@v4
@@ -46,12 +45,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Android SDK Environment
+        uses: android-actions/setup-android@v3
+
       - name: Build Android Receiver Client (.apk)
         shell: powershell
         run: |
           $ver = (Get-Content version.txt -Raw).Trim()
           Set-Location client-android
-          .\gradlew.bat assembleRelease
+          if (Test-Path "local.properties") { Remove-Item "local.properties" -Force }
+          .\gradlew.bat assembleRelease --no-daemon
           Set-Location ..
           $expectedApk = "client-android\app\build\outputs\apk\release\yanich-desksound_v$ver.apk"
           if (Test-Path $expectedApk) {
@@ -76,7 +79,7 @@ jobs:
             yanich-desksound_v*.apk
 
   build-linux:
-    name: Build Linux Server Binary
+    name: Build Linux Server Binary & Package
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -85,18 +88,20 @@ jobs:
       - name: Install Linux Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpulse-dev build-essential cmake
+          sudo apt-get install -y libpulse-dev build-essential cmake libgtk-3-dev libayatana-appindicator3-dev pkg-config
 
-      - name: Compile Linux Server Binary
+      - name: Compile Linux Server Binary & Package
         run: |
           chmod +x scripts/build_linux.sh
           bash scripts/build_linux.sh
 
-      - name: Upload Linux Binary Artifact
+      - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-assets
-          path: yanich-desksound_v*-linux-x64
+          path: |
+            yanich-desksound_v*-linux-x64
+            yanich-desksound_v*-linux-x64.tar.gz
 
   publish-release:
     name: Publish GitHub Release
