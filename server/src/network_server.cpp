@@ -233,10 +233,33 @@ void NetworkServer::UdpDiscoveryThread() {
     closesocket(udpSocket);
 }
 
+#ifdef _WIN32
+static void RunSilentCommand(const char* cmd) {
+    STARTUPINFOA si{};
+    PROCESS_INFORMATION pi{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    
+    char command[256];
+    snprintf(command, sizeof(command), "cmd.exe /c %s", cmd);
+
+    if (CreateProcessA(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, 2000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+}
+#endif
+
 void NetworkServer::AdbReverseThread() {
     while (m_running.load()) {
         if (m_active.load()) {
+#ifdef _WIN32
+            RunSilentCommand("adb reverse tcp:5000 tcp:5000 >nul 2>&1");
+#else
             system("adb reverse tcp:5000 tcp:5000 >/dev/null 2>&1");
+#endif
         }
         std::this_thread::sleep_for(std::chrono::seconds(8));
     }
