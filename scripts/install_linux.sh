@@ -23,10 +23,8 @@ elif [ -f "$SCRIPT_DIR/$BINARY_NAME" ]; then
     BIN_PATH="$SCRIPT_DIR/$BINARY_NAME"
 elif [ -f "$SCRIPT_DIR/yanich-desksound" ]; then
     BIN_PATH="$SCRIPT_DIR/yanich-desksound"
-elif [ -f "$ROOT_DIR/yanich-desksound" ]; then
-    BIN_PATH="$ROOT_DIR/yanich-desksound"
-elif [ -f "$ROOT_DIR/server-linux/build/desksound-linux" ]; then
-    BIN_PATH="$ROOT_DIR/server-linux/build/desksound-linux"
+elif [ -f "$ROOT_DIR/desksound-linux" ]; then
+    BIN_PATH="$ROOT_DIR/desksound-linux"
 elif [ -d "$ROOT_DIR" ]; then
     BIN_PATH=$(find "$ROOT_DIR" -maxdepth 2 -type f \( -name "yanich-desksound*" -o -name "desksound-linux" \) ! -name "*.tar.gz" ! -name "*.sh" 2>/dev/null | head -n 1)
 fi
