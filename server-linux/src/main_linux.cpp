@@ -70,7 +70,7 @@ void BroadcastAudioChunk(const uint8_t* data, size_t size) {
 
 int main() {
     std::cout << "==================================================" << std::endl;
-    std::cout << " 🔊 Yanich DeskSound Linux Server v1.0.7" << std::endl;
+    std::cout << " 🔊 Yanich DeskSound Linux Server v1.2.1" << std::endl;
     std::cout << "==================================================" << std::endl;
 
     std::thread discoveryThread(UDPDiscoveryServer);
@@ -85,6 +85,8 @@ int main() {
     int serverSock = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSock < 0) {
         std::cerr << "[Linux Server] Failed to create TCP socket." << std::endl;
+        g_running = false;
+        if (discoveryThread.joinable()) discoveryThread.join();
         return 1;
     }
 
@@ -98,6 +100,9 @@ int main() {
 
     if (bind(serverSock, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         std::cerr << "[Linux Server] TCP Bind failed on port " << PORT << std::endl;
+        g_running = false;
+        if (discoveryThread.joinable()) discoveryThread.join();
+        close(serverSock);
         return 1;
     }
 
