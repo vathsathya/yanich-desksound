@@ -325,11 +325,15 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         ConfigManager::Instance().SaveConfig();
     }
 
-    // --- 5. DEDICATED BOTTOM STATUS BAR CONTAINER ---
-    ImGui::Spacing();
+    // --- 5. DEDICATED BOTTOM DOCKED STATUS BAR ---
+    ImGui::SetCursorPos(ImVec2(0.0f, ImGui::GetWindowHeight() - 32.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.04f, 0.06f, 0.10f, 1.00f)); // #090d16 Deep Dark Status Bar
-    ImGui::BeginChild("StatusBar", ImVec2(0, 32), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
+    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), 32.0f), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    ImGui::SetCursorPosX(12.0f);
     if (isServerActive) {
         ImGui::TextColored(ImVec4(0.06f, 0.73f, 0.49f, 1.00f), "RUNNING (Port 5000)");
     } else {
@@ -342,11 +346,12 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.55f, 0.36f, 0.96f, 1.00f), "|  Clients: %d", (int)clients.size());
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 70.0f);
+    ImGui::SameLine(ImGui::GetWindowWidth() - 75.0f);
     ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "~21.3ms");
 
     ImGui::EndChild();
     ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
 
     // Modal Event Log History Dialog
     if (m_showLogsModal) {
