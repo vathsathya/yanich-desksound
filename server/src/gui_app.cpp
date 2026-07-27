@@ -89,7 +89,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::Begin("YanichDeskSoundMain", nullptr, windowFlags);
 
-    // --- 1. Top Header Bar & Live Metrics ---
+    // --- 1. Top Header Bar ---
     ImGui::TextColored(ImVec4(0.97f, 0.98f, 0.99f, 1.00f), "Yanich DeskSound");
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "v1.2.7");
@@ -100,27 +100,16 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         m_showLogsModal = true;
     }
 
-    // Top Metrics Badges Bar
-    bool isServerActive = NetworkServer::Instance().IsActive();
-    auto clients = NetworkServer::Instance().GetClients();
-    float bitrate = NetworkServer::Instance().GetBitrateMbps();
-
-    if (isServerActive) {
-        ImGui::TextColored(ImVec4(0.06f, 0.73f, 0.49f, 1.00f), "RUNNING (Port 5000)");
-    } else {
-        ImGui::TextColored(ImVec4(0.94f, 0.27f, 0.27f, 1.00f), "STOPPED");
-    }
-    ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.23f, 0.51f, 0.96f, 1.00f), "|  %.1f Mbps", bitrate);
-    ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.55f, 0.36f, 0.96f, 1.00f), "|  Clients: %d", (int)clients.size());
-
     ImGui::Separator();
     ImGui::Spacing();
 
     // --- 2. GROUP 1: AUDIO CONTROLS & DUAL VU METERS ---
     ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "AUDIO CONTROLS & DUAL VU METERS");
-    ImGui::BeginChild("AudioCard", ImVec2(0, 255), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("AudioCard", ImVec2(0, 250), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    bool isServerActive = NetworkServer::Instance().IsActive();
+    auto clients = NetworkServer::Instance().GetClients();
+    float bitrate = NetworkServer::Instance().GetBitrateMbps();
 
     // Dual Stereo VU LED Level Meters (Left & Right)
     float peakL = audioBackend ? audioBackend->GetPeakLevelL() : 0.0f;
@@ -274,7 +263,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     // --- 3. GROUP 2: NETWORK & CONNECTED CLIENTS ---
     ImGui::Spacing();
     ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "NETWORK & CONNECTED CLIENTS");
-    ImGui::BeginChild("NetCard", ImVec2(0, 100), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("NetCard", ImVec2(0, 95), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     ImGui::Text("Server IP:");
     ImGui::SameLine();
@@ -321,7 +310,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::EndChild();
 
-    // --- 4. Bottom System Checkboxes & Status Bar ---
+    // --- 4. Bottom System Checkboxes ---
     ImGui::Spacing();
     if (ImGui::Checkbox("Minimize to System Tray on close", &cfg.minimizeToTray)) {
         cfgChanged = true;
@@ -335,6 +324,29 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         ConfigManager::Instance().UpdateConfig(cfg);
         ConfigManager::Instance().SaveConfig();
     }
+
+    // --- 5. DEDICATED BOTTOM STATUS BAR CONTAINER ---
+    ImGui::Spacing();
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.04f, 0.06f, 0.10f, 1.00f)); // #090d16 Deep Dark Status Bar
+    ImGui::BeginChild("StatusBar", ImVec2(0, 32), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    if (isServerActive) {
+        ImGui::TextColored(ImVec4(0.06f, 0.73f, 0.49f, 1.00f), "RUNNING (Port 5000)");
+    } else {
+        ImGui::TextColored(ImVec4(0.94f, 0.27f, 0.27f, 1.00f), "STOPPED");
+    }
+
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.23f, 0.51f, 0.96f, 1.00f), "|  %.1f Mbps", bitrate);
+
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.55f, 0.36f, 0.96f, 1.00f), "|  Clients: %d", (int)clients.size());
+
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 70.0f);
+    ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "~21.3ms");
+
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 
     // Modal Event Log History Dialog
     if (m_showLogsModal) {
