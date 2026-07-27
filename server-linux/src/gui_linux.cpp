@@ -126,7 +126,7 @@ void GuiLinux::BuildUI() {
     gtk_widget_set_halign(lblHeaderTitle, GTK_ALIGN_START);
 
     GtkWidget* lblHeaderSub = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(lblHeaderSub), "<span size='8500' foreground='#64748b'>Linux Server v1.2.0</span>");
+    gtk_label_set_markup(GTK_LABEL(lblHeaderSub), "<span size='8500' foreground='#64748b'>Linux Server v1.2.1</span>");
     gtk_widget_set_halign(lblHeaderSub, GTK_ALIGN_START);
 
     gtk_box_pack_start(GTK_BOX(textVBox), lblHeaderTitle, FALSE, FALSE, 0);

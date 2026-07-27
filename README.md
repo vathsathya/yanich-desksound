@@ -1,6 +1,6 @@
-# 🔊 Yanich DeskSound `v1.2.0`
+# 🔊 Yanich DeskSound `v1.2.1`
 
-[![Release](https://img.shields.io/badge/Release-v1.2.0-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.2.0)
+[![Release](https://img.shields.io/badge/Release-v1.2.1-00E5FF.svg?style=for-the-badge&logo=github)](https://github.com/vathsathya/yanich-desksound/releases/tag/v1.2.1)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Android-00E5FF.svg?style=for-the-badge&logo=linux)](https://github.com/vathsathya/yanich-desksound)
 [![License](https://img.shields.io/badge/License-MIT-00E5FF.svg?style=for-the-badge)](LICENSE)
 [![Latency](https://img.shields.io/badge/Latency-~2.6ms%20(128%20samples)-00E376.svg?style=for-the-badge)](https://github.com/vathsathya/yanich-desksound)
@@ -57,25 +57,25 @@ graph TD
 
 ## 🚀 Downloads & User Guide
 
-### 📦 Latest Release Assets (v1.2.0)
+### 📦 Latest Release Assets (v1.2.1)
 
 | Component | Asset File | File Size | Description |
 | :--- | :--- | :--- | :--- |
-| 🐧 **Linux Production Package** | [`yanich-desksound_v1.2.0-linux-x64.tar.gz`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.0/yanich-desksound_v1.2.0-linux-x64.tar.gz) | **~800 KB** | Linux Desktop Installer Package *(App Launcher Shortcut + Binary)* |
-| 🐧 **Linux Standalone Binary** | [`yanich-desksound_v1.2.0-linux-x64`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.0/yanich-desksound_v1.2.0-linux-x64) | **2.2 MB** | Portable Executable *(Direct run without installation)* |
-| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.2.0.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.0/yanich-desksound_v1.2.0.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
-| 📱 **Android Receiver App** | [`yanich-desksound_v1.2.0.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.0/yanich-desksound_v1.2.0.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
+| 🐧 **Linux Production Package** | [`yanich-desksound_v1.2.1-linux-x64.tar.gz`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1-linux-x64.tar.gz) | **~800 KB** | Linux Desktop Installer Package *(App Launcher Shortcut + Binary)* |
+| 🐧 **Linux Standalone Binary** | [`yanich-desksound_v1.2.1-linux-x64`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1-linux-x64) | **2.2 MB** | Portable Executable *(Direct run without installation)* |
+| 🖥️ **Windows Server GUI** | [`yanich-desksound_v1.2.1.exe`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1.exe) | **322 KB** | Portable Standalone Executable *(No install required!)* |
+| 📱 **Android Receiver App** | [`yanich-desksound_v1.2.1.apk`](https://github.com/vathsathya/yanich-desksound/releases/download/v1.2.1/yanich-desksound_v1.2.1.apk) | **4.88 MB** | Release APK for Android 7.0 (API 24) or newer |
 
 ---
 
 ### 🐧 Linux Server User Guide
 
 #### Option A: Quick Production Installation (App Launcher Integration)
-1. Download `yanich-desksound_v1.2.0-linux-x64.tar.gz` from Releases.
+1. Download `yanich-desksound_v1.2.1-linux-x64.tar.gz` from Releases.
 2. Extract the archive and run the installer:
 ```bash
-tar -xzf yanich-desksound_v1.2.0-linux-x64.tar.gz
-cd yanich-desksound_v1.2.0-linux-x64
+tar -xzf yanich-desksound_v1.2.1-linux-x64.tar.gz
+cd yanich-desksound_v1.2.1-linux-x64
 bash install.sh
 ```
 3. Search for **"Yanich DeskSound"** in your Linux Desktop Application Launcher / Start Menu (Ubuntu, GNOME, KDE, Linux Mint, Fedora) and click to launch!
@@ -86,11 +86,11 @@ bash uninstall.sh
 ```
 
 #### Option B: Portable Execution (No Installation Required)
-1. Download `yanich-desksound_v1.2.0-linux-x64`.
+1. Download `yanich-desksound_v1.2.1-linux-x64`.
 2. Make it executable and run directly from anywhere:
 ```bash
-chmod +x yanich-desksound_v1.2.0-linux-x64
-./yanich-desksound_v1.2.0-linux-x64
+chmod +x yanich-desksound_v1.2.1-linux-x64
+./yanich-desksound_v1.2.1-linux-x64
 ```
 
 ---
