@@ -17,11 +17,15 @@ mkdir -p "$BUILD_DIR"
 
 cd "$ROOT_DIR/server-linux"
 
-if command -v cmake &> /dev/null; then
+if [ -f "CMakeLists.txt" ] && command -v cmake &> /dev/null; then
     echo "[+] Configuring CMake..."
     cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
     echo "[+] Compiling binaries..."
     cmake --build build --config Release
+    OUTPUT_BIN="$BUILD_DIR/desksound-linux"
+elif command -v make &> /dev/null && [ -f "Makefile" ]; then
+    echo "[+] Compiling using make..."
+    make
     OUTPUT_BIN="$BUILD_DIR/desksound-linux"
 else
     echo "[+] Compiling using g++ directly..."
