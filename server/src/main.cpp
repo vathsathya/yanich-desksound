@@ -53,7 +53,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Create Application Window
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, L"YanichDeskSoundClass", NULL };
     ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Yanich DeskSound Server", WS_OVERLAPPEDWINDOW, 100, 100, 480, 560, NULL, NULL, wc.hInstance, NULL);
+    RECT rect = { 0, 0, 480, 600 };
+    ::AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+    int winWidth = rect.right - rect.left;
+    int winHeight = rect.bottom - rect.top;
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Yanich DeskSound Server", WS_OVERLAPPEDWINDOW, 100, 100, winWidth, winHeight, NULL, NULL, wc.hInstance, NULL);
 
     if (!CreateDeviceD3D(hwnd)) {
         CleanupDeviceD3D();
