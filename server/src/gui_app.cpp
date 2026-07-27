@@ -105,7 +105,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // --- 2. GROUP 1: AUDIO CONTROLS & DUAL VU METERS ---
     ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "AUDIO CONTROLS & DUAL VU METERS");
-    ImGui::BeginChild("AudioCard", ImVec2(0, 235), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("AudioCard", ImVec2(0, 255), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     bool isServerActive = NetworkServer::Instance().IsActive();
     auto clients = NetworkServer::Instance().GetClients();

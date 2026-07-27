@@ -53,7 +53,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Create Application Window
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, L"YanichDeskSoundClass", NULL };
     ::RegisterClassExW(&wc);
-    RECT rect = { 0, 0, 470, 480 };
+    RECT rect = { 0, 0, 470, 515 };
     ::AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
     int winWidth = rect.right - rect.left;
     int winHeight = rect.bottom - rect.top;
