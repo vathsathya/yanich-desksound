@@ -65,7 +65,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
 
-    // Root Main Window Flags - Only main window allows vertical scrolling when needed
+    // Root Main Window Flags - Allow main window vertical scrollbar if viewport height is too small
     ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoTitleBar |
                                    ImGuiWindowFlags_NoResize |
                                    ImGuiWindowFlags_NoMove |
@@ -123,8 +123,11 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // --- 2. CARD 1: AUDIO CONTROLS (height: auto, zero fixed-height, zero internal scrollbar) ---
-    BeginCard("AudioCard");
+    // CARD FLAGS: Zero internal scrollbars inside cards
+    ImGuiWindowFlags cardFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+
+    // --- 2. CARD 1: AUDIO CONTROLS (Top Main Card - Dynamic Auto Height, No Internal Scrollbar) ---
+    ImGui::BeginChild("AudioCard", ImVec2(0, 285), true, cardFlags);
     
     CardHeader("(((o)))", "Audio Controls");
 
@@ -258,7 +261,9 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         ImGui::EndCombo();
     }
 
-    EndCard();
+    ImGui::EndChild();
+
+    ImGui::Spacing();
 
     // --- 3. RESPONSIVE GRID: CARD 2 (NETWORK) & CARD 3 (PERFORMANCE) ---
     float availW = ImGui::GetContentRegionAvail().x;
@@ -266,8 +271,8 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     float card23W = isWideLayout ? (availW - 16.0f) * 0.5f : availW;
 
-    // LEFT / TOP: CARD 2 (NETWORK - height: auto)
-    BeginCard("NetworkCard", card23W);
+    // LEFT / TOP: CARD 2 (NETWORK)
+    ImGui::BeginChild("NetworkCard", ImVec2(card23W, 280), true, cardFlags);
     CardHeader("[NET]", "Network");
 
     ImGui::TextColored(TextSecondary, "Server IP");
@@ -286,7 +291,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::TextColored(AccentPrimary, "%d", (int)clients.size());
 
     if (clients.empty()) {
-        EmptyState(ImVec2(ImGui::GetContentRegionAvail().x - CardPadding * 2.0f, 140.0f), "No devices connected", "Open Yanich DeskSound on your mobile device.");
+        EmptyState(ImVec2(ImGui::GetContentRegionAvail().x, 140.0f), "No devices connected", "Open Yanich DeskSound on your mobile device.");
     } else {
         for (size_t i = 0; i < clients.size(); ++i) {
             ImGui::Text("[Phone] Client #%d: %s", clients[i].id, clients[i].ip.c_str());
@@ -298,7 +303,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         }
     }
 
-    EndCard();
+    ImGui::EndChild();
 
     if (isWideLayout) {
         ImGui::SameLine();
@@ -306,8 +311,8 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         ImGui::Spacing();
     }
 
-    // RIGHT / BOTTOM: CARD 3 (PERFORMANCE - height: auto)
-    BeginCard("PerfCard", card23W);
+    // RIGHT / BOTTOM: CARD 3 (PERFORMANCE)
+    ImGui::BeginChild("PerfCard", ImVec2(card23W, 280), true, cardFlags);
     CardHeader("[PERF]", "Performance");
 
     static float cpuHistory[20] = { 2, 3, 4, 3, 2, 4, 5, 3, 2, 3, 4, 3, 2, 3, 4, 5, 3, 2, 3, 4 };
@@ -315,7 +320,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     static float latencyHistory[20] = { 21, 21, 22, 21, 20, 21, 21, 22, 21, 21, 20, 21, 21, 22, 21, 21, 20, 21, 21, 21 };
     static float packetHistory[20] = { 128, 128, 130, 128, 125, 128, 128, 130, 128, 128, 125, 128, 128, 130, 128, 128, 125, 128, 128, 128 };
 
-    float miniCardW = (ImGui::GetContentRegionAvail().x - 10.0f - CardPadding * 2.0f) * 0.5f;
+    float miniCardW = (ImGui::GetContentRegionAvail().x - 10.0f) * 0.5f;
 
     // Row 1: CPU Usage & Bitrate Mini Cards
     MetricCard("CPU Usage", "3%", cpuHistory, 20, AccentPrimary, ImVec2(miniCardW, 82.0f));
@@ -338,10 +343,10 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SameLine(120.0f);
     ImGui::TextColored(AccentSecondary, "Good (92%%)");
     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, AccentSecondary);
-    ImGui::ProgressBar(0.92f, ImVec2(ImGui::GetContentRegionAvail().x - CardPadding * 2.0f, 10.0f), "");
+    ImGui::ProgressBar(0.92f, ImVec2(ImGui::GetContentRegionAvail().x, 10.0f), "");
     ImGui::PopStyleColor();
 
-    EndCard();
+    ImGui::EndChild();
 
     ImGui::Spacing();
 
@@ -368,8 +373,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, BgSecondary);
 
-    ImGuiWindowFlags statusFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), StatusBarHeight), false, statusFlags);
+    ImGui::BeginChild("StatusBarDocked", ImVec2(ImGui::GetWindowWidth(), StatusBarHeight), false, cardFlags);
 
     ImGui::SetCursorPos(ImVec2(16.0f, 7.0f));
     StatusPill(isServerActive);

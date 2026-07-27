@@ -9,12 +9,8 @@
 namespace DesignSystem {
 
 // ====================================================
-// REUSABLE WIDGET LIBRARY & CARD HELPERS
+// REUSABLE WIDGET LIBRARY
 // ====================================================
-
-// Auto-Height Card Container Helpers (height: auto)
-void BeginCard(const char* id, float width = 0.0f);
-void EndCard();
 
 // Buttons
 bool PrimaryButton(const char* label, ImVec2 size = ImVec2(0.0f, 0.0f));

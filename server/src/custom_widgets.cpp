@@ -33,49 +33,6 @@ namespace DesignSystem {
 
 using namespace DesignTokens;
 
-struct CardInfo {
-    ImVec2 startPos;
-    float width;
-    ImDrawList* drawList;
-};
-
-static std::vector<CardInfo> g_cardStack;
-
-void BeginCard(const char* id, float width) {
-    if (width <= 0.0f) {
-        width = ImGui::GetContentRegionAvail().x;
-    }
-
-    ImGui::PushID(id);
-    ImVec2 startPos = ImGui::GetCursorScreenPos();
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-    g_cardStack.push_back({ startPos, width, drawList });
-
-    ImGui::BeginGroup();
-    ImGui::SetCursorScreenPos(ImVec2(startPos.x + CardPadding, startPos.y + CardPadding));
-}
-
-void EndCard() {
-    if (g_cardStack.empty()) return;
-
-    CardInfo info = g_cardStack.back();
-    g_cardStack.pop_back();
-
-    ImGui::EndGroup();
-
-    ImVec2 endPos = ImGui::GetCursorScreenPos();
-    float contentH = endPos.y - info.startPos.y + CardPadding;
-
-    // Render Card Background (#1E293B) and Border (rgba(255,255,255,0.05))
-    info.drawList->AddRectFilled(info.startPos, ImVec2(info.startPos.x + info.width, info.startPos.y + contentH), ImGui::ColorConvertFloat4ToU32(CardBg), CardRadius);
-    info.drawList->AddRect(info.startPos, ImVec2(info.startPos.x + info.width, info.startPos.y + contentH), ImGui::ColorConvertFloat4ToU32(BorderColor), CardRadius);
-
-    // Advance Cursor past the dynamic card height
-    ImGui::SetCursorScreenPos(ImVec2(info.startPos.x, info.startPos.y + contentH + SectionSpacing));
-    ImGui::PopID();
-}
-
 bool PrimaryButton(const char* label, ImVec2 size) {
     ImGui::PushStyleColor(ImGuiCol_Button, AccentPrimary);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.38f, 0.88f, 0.98f, 1.00f));
@@ -117,7 +74,7 @@ bool DrawServerButton(bool isRunning, float width) {
     if (window->SkipItems) return false;
 
     if (width <= 0.0f) {
-        width = ImGui::GetContentRegionAvail().x - CardPadding * 2.0f;
+        width = ImGui::GetContentRegionAvail().x;
     }
 
     ImGuiContext& g = *GImGui;
@@ -166,6 +123,7 @@ bool DrawServerButton(bool isRunning, float width) {
 bool ModernSlider(const char* label, const char* idStr, float* v, float v_min, float v_max, float default_val, const char* format) {
     bool changed = ImGui::SliderFloat(idStr, v, v_min, v_max, format);
     
+    // Double click to reset slider to default value
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         *v = default_val;
         changed = true;
@@ -262,7 +220,7 @@ void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float
     ImGui::TextColored(TextSecondary, "%s", label);
     ImGui::SameLine(60.0f);
 
-    float availW = ImGui::GetContentRegionAvail().x - 65.0f - CardPadding * 2.0f;
+    float availW = ImGui::GetContentRegionAvail().x - 65.0f;
     float meterH = 14.0f;
     ImVec2 pos = ImGui::GetCursorScreenPos();
     
@@ -312,7 +270,7 @@ void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float
     ImGui::ItemSize(ImVec2(availW, meterH));
 
     ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 55.0f - CardPadding);
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 55.0f);
     ImGui::TextColored(baseColor, "%3d%%", (int)(clampedLevel * 100.0f));
 }
 
