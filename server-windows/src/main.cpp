@@ -1370,25 +1370,24 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
     RECT rcClient;
     GetClientRect(hwnd, &rcClient);
 
-    int trackX1 = 135, trackX2 = rcClient.right - 110;
+    int trackX1 = 115, trackX2 = rcClient.right - 110;
     int trackW = trackX2 - trackX1;
 
-    RECT btnToggleServer  = { rcClient.right - 116, 20, rcClient.right - 28, 44 };
-    RECT btnDeviceDropdown= { 140, 74, rcClient.right - 28, 94 };
+    RECT btnToggleServer  = { rcClient.right - 48, 82, rcClient.right - 24, 108 };
+    RECT btnMuteMaster    = { rcClient.right - 65, 114, rcClient.right - 24, 134 };
+    RECT btnMuteLeft      = { rcClient.right - 65, 146, rcClient.right - 24, 166 };
+    RECT btnMuteRight     = { rcClient.right - 65, 178, rcClient.right - 24, 198 };
 
-    RECT btnDropdownC1 = { rcClient.right - 100, 143, rcClient.right - 56, 161 };
-    RECT btnKickClient1= { rcClient.right - 50, 143, rcClient.right - 28, 161 };
+    RECT btnDeviceDropdown= { 135, 212, rcClient.right - 24, 234 };
+    RECT btnBufferDropdown= { 135, 246, rcClient.right - 24, 268 };
 
-    RECT btnDropdownC2 = { rcClient.right - 100, 165, rcClient.right - 56, 183 };
-    RECT btnKickClient2= { rcClient.right - 50, 165, rcClient.right - 28, 183 };
+    RECT btnDropdownC1    = { rcClient.right - 110, 362, rcClient.right - 60, 382 };
+    RECT btnKickClient1   = { rcClient.right - 54, 362, rcClient.right - 24, 382 };
 
-    RECT btnReset  = { rcClient.right - 70, 304, rcClient.right - 28, 324 };
+    RECT btnDropdownC2    = { rcClient.right - 110, 392, rcClient.right - 60, 412 };
+    RECT btnKickClient2   = { rcClient.right - 54, 392, rcClient.right - 24, 412 };
 
-    RECT btnMuteMaster = { rcClient.right - 100, 336, rcClient.right - 65, 356 };
-    RECT btnMuteLeft   = { rcClient.right - 100, 374, rcClient.right - 65, 394 };
-    RECT btnMuteRight  = { rcClient.right - 100, 412, rcClient.right - 65, 432 };
-
-    RECT rFooterText   = { rcClient.right - 105, 468, rcClient.right - 10, 492 };
+    RECT rFooterText      = { rcClient.right - 105, 468, rcClient.right - 10, 492 };
 
     if (isClick) {
         POINT pt = { mx, my };
@@ -1398,10 +1397,10 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             return;
         }
 
-        RECT btnLogs = { rcClient.right - 80, 18, rcClient.right - 20, 40 };
+        RECT btnLogs = { rcClient.right - 85, 14, rcClient.right - 16, 38 };
         if (g_updateAvailable.load()) {
-            btnLogs = { rcClient.right - 180 - 75, 18, rcClient.right - 180 - 10, 40 };
-            RECT btnUpdate = { rcClient.right - 180, 18, rcClient.right - 20, 40 };
+            btnLogs = { rcClient.right - 85 - 120, 14, rcClient.right - 16 - 120, 38 };
+            RECT btnUpdate = { rcClient.right - 110, 14, rcClient.right - 16, 38 };
             if (PtInRect(&btnUpdate, pt)) {
                 ShellExecuteA(NULL, "open", g_latestUpdateUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
                 return;
@@ -1433,13 +1432,13 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
 
         HDC hdcTemp = GetDC(hwnd);
         HFONT oldF = (HFONT)SelectObject(hdcTemp, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        int startX = 90;
+        int startX = 105;
         for (size_t idx = 0; idx < ipListClick.size() && idx < 3; ++idx) {
             std::wstring wIp = Utf8ToWide(ipListClick[idx]);
             SIZE sz;
             GetTextExtentPoint32W(hdcTemp, wIp.c_str(), (int)wIp.length(), &sz);
-            int pillW = sz.cx + 10;
-            RECT rIpPill = { startX, 46, startX + pillW, 66 };
+            int pillW = sz.cx + 12;
+            RECT rIpPill = { startX, 330, startX + pillW, 350 };
             if (PtInRect(&rIpPill, pt)) {
                 SelectObject(hdcTemp, oldF);
                 ReleaseDC(hwnd, hdcTemp);
@@ -1463,9 +1462,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
         // Handle open dropdown selection first
         int openMenu = g_openDropdown.load();
         if (openMenu == 1) {
-            RECT rOpt1 = { rcClient.right - 100, 164, rcClient.right - 56, 180 };
-            RECT rOpt2 = { rcClient.right - 100, 182, rcClient.right - 56, 198 };
-            RECT rOpt3 = { rcClient.right - 100, 200, rcClient.right - 56, 216 };
+            RECT rOpt1 = { rcClient.right - 110, 386, rcClient.right - 60, 404 };
+            RECT rOpt2 = { rcClient.right - 110, 406, rcClient.right - 60, 424 };
+            RECT rOpt3 = { rcClient.right - 110, 426, rcClient.right - 60, 444 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client1Channel.store(CLIENT_MODE_LEFT);
                 if (g_clientSockets.size() >= 2) g_client2Channel.store(CLIENT_MODE_RIGHT);
@@ -1486,9 +1485,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             g_openDropdown.store(0);
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 2) {
-            RECT rOpt1 = { rcClient.right - 100, 186, rcClient.right - 56, 202 };
-            RECT rOpt2 = { rcClient.right - 100, 204, rcClient.right - 56, 220 };
-            RECT rOpt3 = { rcClient.right - 100, 222, rcClient.right - 56, 238 };
+            RECT rOpt1 = { rcClient.right - 110, 416, rcClient.right - 60, 434 };
+            RECT rOpt2 = { rcClient.right - 110, 436, rcClient.right - 60, 454 };
+            RECT rOpt3 = { rcClient.right - 110, 456, rcClient.right - 60, 474 };
             if (PtInRect(&rOpt1, pt)) {
                 g_client2Channel.store(CLIENT_MODE_LEFT);
                 if (g_clientSockets.size() >= 1) g_client1Channel.store(CLIENT_MODE_RIGHT);
@@ -1510,12 +1509,25 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE);
         } else if (openMenu == 3) {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int itemY = 98;
+            int itemY = 238;
             for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 150, itemY, rcClient.right - 20, itemY + 18 };
+                RECT rOpt = { 137, itemY, rcClient.right - 26, itemY + 18 };
                 if (PtInRect(&rOpt, pt)) {
                     g_selectedDeviceIndex.store((int)k);
-                    g_deviceChanged.store(true); // Signal audio loop thread to switch audio endpoint
+                    g_deviceChanged.store(true);
+                    g_openDropdown.store(0);
+                    InvalidateRect(hwnd, NULL, FALSE); return;
+                }
+                itemY += 20;
+            }
+            g_openDropdown.store(0);
+            InvalidateRect(hwnd, NULL, FALSE);
+        } else if (openMenu == 4) {
+            int itemY = 272;
+            for (int k = 0; k < 5; ++k) {
+                RECT rOpt = { 137, itemY, rcClient.right - 26, itemY + 18 };
+                if (PtInRect(&rOpt, pt)) {
+                    g_bufferSizeIndex.store(k);
                     g_openDropdown.store(0);
                     InvalidateRect(hwnd, NULL, FALSE); return;
                 }
@@ -1525,33 +1537,19 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE);
         }
 
-        RECT btnSwapLR = { rcClient.right - 95, 120, rcClient.right - 28, 138 };
-        if (PtInRect(&btnSwapLR, pt)) {
-            ClientChannelMode tmp = g_client1Channel.load();
-            g_client1Channel.store(g_client2Channel.load());
-            g_client2Channel.store(tmp);
-            g_openDropdown.store(0);
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-
-        RECT btnTestSound = { rcClient.right - 95, 206, rcClient.right - 28, 226 };
-        if (PtInRect(&btnTestSound, pt)) {
-            if (g_isTestAudioPlaying.load()) {
-                g_isTestAudioPlaying.store(false);
-                g_rmsL.store(0.0f);
-                g_rmsR.store(0.0f);
-            } else {
-                g_testAudioStartTime.store(GetTickCount());
-                g_isTestAudioPlaying.store(true);
-            }
-            g_openDropdown.store(0);
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-
         if (PtInRect(&btnDeviceDropdown, pt)) {
             if (openMenu != 3) {
                 EnumerateAudioDevices();
                 g_openDropdown.store(3);
+            } else {
+                g_openDropdown.store(0);
+            }
+            InvalidateRect(hwnd, NULL, FALSE); return;
+        }
+
+        if (PtInRect(&btnBufferDropdown, pt)) {
+            if (openMenu != 4) {
+                g_openDropdown.store(4);
             } else {
                 g_openDropdown.store(0);
             }
@@ -1593,17 +1591,6 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             }
         }
 
-        if (PtInRect(&btnReset, pt)) {
-            g_masterVolume.store(100.0f);
-            g_gainL.store(100.0f);
-            g_gainR.store(100.0f);
-            g_isMuted.store(false);
-            g_isMutedL.store(false);
-            g_isMutedR.store(false);
-            SaveServerConfig();
-            InvalidateRect(hwnd, NULL, FALSE); return;
-        }
-
         if (PtInRect(&btnMuteMaster, pt)) {
             g_isMuted.store(!g_isMuted.load());
             InvalidateRect(hwnd, NULL, FALSE); return;
@@ -1619,9 +1606,9 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             InvalidateRect(hwnd, NULL, FALSE); return;
         }
 
-        if (my >= 334 && my <= 362) g_activeDrag = DRAG_MASTER;
-        else if (my >= 372 && my <= 400) g_activeDrag = DRAG_GAIN_L;
-        else if (my >= 410 && my <= 438) g_activeDrag = DRAG_GAIN_R;
+        if (my >= 114 && my <= 134) g_activeDrag = DRAG_MASTER;
+        else if (my >= 146 && my <= 166) g_activeDrag = DRAG_GAIN_L;
+        else if (my >= 178 && my <= 198) g_activeDrag = DRAG_GAIN_R;
     }
 
     if (g_activeDrag != DRAG_NONE) {
@@ -1920,49 +1907,189 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HBITMAP memBitmap = CreateCompatibleBitmap(hdc, rcClient.right, rcClient.bottom);
         HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
-        COLORREF windowBgColor = RGB(13, 17, 26);
+        // --- Clean Linux GTK Dark Slate Color Palette ---
+        COLORREF windowBgColor = RGB(15, 23, 42);      // #0f172a (Slate 900)
+        COLORREF cardBgColor   = RGB(30, 41, 59);      // #1e293b (Slate 800 Card Container)
+        COLORREF cardBorderCol = RGB(51, 65, 85);      // #334155 (Slate 700 Border)
+        COLORREF headerTextCol = RGB(100, 116, 139);   // #64748b (Slate 500 Section Title)
+        COLORREF mainTextCol   = RGB(248, 250, 252);   // #f8fafc (Slate 50 Primary Text)
+        COLORREF subTextCol    = RGB(148, 163, 184);   // #94a3b8 (Slate 400 Secondary Text)
+        COLORREF accentBlue    = RGB(37, 99, 235);     // #2563eb (Royal Blue Slider/Highlight)
+        COLORREF accentGreen   = RGB(16, 185, 129);    // #10b981 (Emerald Active/Meter)
+        COLORREF accentRed     = RGB(239, 68, 68);     // #ef4444 (Red Stop/Mute)
+
         HBRUSH bgBrush = CreateSolidBrush(windowBgColor);
         FillRect(memDC, &rcClient, bgBrush);
         DeleteObject(bgBrush);
 
         SetBkMode(memDC, TRANSPARENT);
 
-        RECT btnLogsDraw = { rcClient.right - 80, 12, rcClient.right - 20, 34 };
+        // --- 1. Clean Linux Style Header Bar ---
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 16, 12, L"Yanich DeskSound", 16);
+
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, subTextCol);
+        std::wstring verStr = L"Windows Server " + Utf8ToWide(APP_VERSION_TAG);
+        TextOutW(memDC, 16, 30, verStr.c_str(), (int)verStr.length());
+
+        // Header Right Action Buttons (Logs & Update)
+        RECT btnLogsDraw = { rcClient.right - 85, 14, rcClient.right - 16, 38 };
         if (g_updateAvailable.load()) {
-            btnLogsDraw = { rcClient.right - 180 - 75, 12, rcClient.right - 180 - 10, 34 };
-            RECT btnUpdate = { rcClient.right - 180, 12, rcClient.right - 20, 34 };
-            std::wstring btnText = L"🚀 UPDATE " + Utf8ToWide(g_latestUpdateTag);
-            DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), RGB(0, 229, 255), RGB(18, 22, 33));
+            btnLogsDraw = { rcClient.right - 85 - 120, 14, rcClient.right - 16 - 120, 38 };
+            RECT btnUpdate = { rcClient.right - 110, 14, rcClient.right - 16, 38 };
+            std::wstring btnText = L"🚀 " + Utf8ToWide(g_latestUpdateTag);
+            DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), accentBlue, mainTextCol);
         }
-        DrawPillButtonW(memDC, btnLogsDraw, L"Logs 📜", RGB(32, 40, 58), RGB(0, 229, 255));
+        DrawPillButtonW(memDC, btnLogsDraw, L"Logs 📜", RGB(51, 65, 85), mainTextCol);
 
-        COLORREF cardBgColor = RGB(21, 27, 39);
-        COLORREF cardBorderColor = RGB(34, 44, 61);
+        // --- 2. GROUP 1: AUDIO CONTROLS (Clean Inset Group) ---
+        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, headerTextCol);
+        TextOutW(memDC, 18, 56, L"AUDIO CONTROLS", 14);
 
-        // Server Status Card
-        RECT card1 = { 16, 14, rcClient.right - 16, 106 };
-        DrawRoundedRectOutline(memDC, card1, cardBgColor, cardBorderColor, 14);
+        RECT cardAudio = { 16, 74, rcClient.right - 16, 290 };
+        DrawRoundedRectOutline(memDC, cardAudio, cardBgColor, cardBorderCol, 6);
 
         bool isActive = g_serverActive.load();
 
-        HBRUSH dotBrush = CreateSolidBrush(isActive ? RGB(0, 230, 118) : RGB(255, 82, 82));
-        HBRUSH oldB = (HBRUSH)SelectObject(memDC, dotBrush);
-        HPEN nullPen = CreatePen(PS_NULL, 0, RGB(0,0,0));
-        HPEN oldP = (HPEN)SelectObject(memDC, nullPen);
-        Ellipse(memDC, 28, 28, 40, 40);
-        SelectObject(memDC, oldB);
-        SelectObject(memDC, oldP);
-        DeleteObject(dotBrush);
-        DeleteObject(nullPen);
+        // Row 0: Audio Level Meter & Square Stop/Start Server Button (⏹ / ▶)
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 28, 86, L"Audio Level:", 12);
 
+        RECT rMeterBg = { 115, 84, rcClient.right - 58, 106 };
+        DrawRoundedRect(memDC, rMeterBg, RGB(15, 23, 42), 4);
+
+        float levelVal = (g_rmsL_smooth.load() + g_rmsR_smooth.load()) * 0.5f;
+        int meterW = (rcClient.right - 58) - 115;
+        int fillW = (int)(std::max(0.0f, std::min(1.0f, levelVal * 2.5f)) * meterW);
+        if (fillW > 0 && isActive) {
+            RECT rMeterFill = { 115, 84, 115 + fillW, 106 };
+            DrawRoundedRect(memDC, rMeterFill, accentGreen, 4);
+        }
+
+        RECT btnServerToggle = { rcClient.right - 48, 82, rcClient.right - 24, 108 };
+        if (isActive) {
+            DrawPillButtonW(memDC, btnServerToggle, L"⏹", accentRed, mainTextCol);
+        } else {
+            DrawPillButtonW(memDC, btnServerToggle, L"▶", accentGreen, mainTextCol);
+        }
+
+        // Row 1: Master Volume
+        TextOutW(memDC, 28, 118, L"Master:", 7);
+        int trackX1 = 115, trackX2 = rcClient.right - 110;
+        int trackW = trackX2 - trackX1;
+
+        float mNorm = std::max(0.0f, std::min(1.0f, g_masterVolume.load() / 100.0f));
+        RECT rTrackM_Bg = { trackX1, 123, trackX2, 127 };
+        DrawRoundedRect(memDC, rTrackM_Bg, RGB(51, 65, 85), 2);
+        if (mNorm > 0.0f) {
+            RECT rTrackM_Fill = { trackX1, 123, trackX1 + (int)(mNorm * trackW), 127 };
+            DrawRoundedRect(memDC, rTrackM_Fill, accentBlue, 2);
+        }
+        int kxM = trackX1 + (int)(mNorm * trackW);
+        RECT rKnobM = { kxM - 6, 119, kxM + 6, 131 };
+        DrawRoundedRect(memDC, rKnobM, mainTextCol, 12);
+
+        wchar_t strMaster[16], strL[16], strR[16];
+        swprintf(strMaster, 16, L"%d%%", (int)g_masterVolume.load());
+        swprintf(strL, 16, L"%d%%", (int)g_gainL.load());
+        swprintf(strR, 16, L"%d%%", (int)g_gainR.load());
+
+        SetTextColor(memDC, accentBlue);
+        TextOutW(memDC, rcClient.right - 102, 118, strMaster, (int)wcslen(strMaster));
+
+        bool isMutedM = g_isMuted.load();
+        RECT btnMuteMaster = { rcClient.right - 65, 114, rcClient.right - 24, 134 };
+        DrawPillButtonW(memDC, btnMuteMaster, isMutedM ? L"Unmute" : L"Mute", isMutedM ? accentRed : RGB(51, 65, 85), mainTextCol);
+
+        // Row 2: Gain Left
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 28, 150, L"Gain L:", 7);
+        float gLNorm = std::max(0.0f, std::min(1.0f, g_gainL.load() / 100.0f));
+        RECT rTrackL_Bg = { trackX1, 155, trackX2, 159 };
+        DrawRoundedRect(memDC, rTrackL_Bg, RGB(51, 65, 85), 2);
+        if (gLNorm > 0.0f) {
+            RECT rTrackL_Fill = { trackX1, 155, trackX1 + (int)(gLNorm * trackW), 159 };
+            DrawRoundedRect(memDC, rTrackL_Fill, accentBlue, 2);
+        }
+        int kxL = trackX1 + (int)(gLNorm * trackW);
+        RECT rKnobL = { kxL - 6, 151, kxL + 6, 163 };
+        DrawRoundedRect(memDC, rKnobL, mainTextCol, 12);
+
+        SetTextColor(memDC, accentBlue);
+        TextOutW(memDC, rcClient.right - 102, 150, strL, (int)wcslen(strL));
+
+        bool isMutedL = g_isMutedL.load();
+        RECT btnMuteLeft = { rcClient.right - 65, 146, rcClient.right - 24, 166 };
+        DrawPillButtonW(memDC, btnMuteLeft, isMutedL ? L"Unmute L" : L"Mute L", isMutedL ? accentRed : RGB(51, 65, 85), mainTextCol);
+
+        // Row 3: Gain Right
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 28, 182, L"Gain R:", 7);
+        float gRNorm = std::max(0.0f, std::min(1.0f, g_gainR.load() / 100.0f));
+        RECT rTrackR_Bg = { trackX1, 187, trackX2, 191 };
+        DrawRoundedRect(memDC, rTrackR_Bg, RGB(51, 65, 85), 2);
+        if (gRNorm > 0.0f) {
+            RECT rTrackR_Fill = { trackX1, 187, trackX1 + (int)(gRNorm * trackW), 191 };
+            DrawRoundedRect(memDC, rTrackR_Fill, accentBlue, 2);
+        }
+        int kxR = trackX1 + (int)(gRNorm * trackW);
+        RECT rKnobR = { kxR - 6, 183, kxR + 6, 195 };
+        DrawRoundedRect(memDC, rKnobR, mainTextCol, 12);
+
+        SetTextColor(memDC, accentBlue);
+        TextOutW(memDC, rcClient.right - 102, 182, strR, (int)wcslen(strR));
+
+        bool isMutedR = g_isMutedR.load();
+        RECT btnMuteRight = { rcClient.right - 65, 178, rcClient.right - 24, 198 };
+        DrawPillButtonW(memDC, btnMuteRight, isMutedR ? L"Unmute R" : L"Mute R", isMutedR ? accentRed : RGB(51, 65, 85), mainTextCol);
+
+        // Row 4: Audio Source Dropdown
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 28, 218, L"Audio Source:", 13);
+        std::string selectedDevName = "Default Playback Device";
+        {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            int selIdx = g_selectedDeviceIndex.load();
+            if (selIdx >= 0 && selIdx < (int)g_audioDevices.size()) {
+                selectedDevName = g_audioDevices[selIdx].name;
+            }
+        }
+        if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
+        std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  ▾";
+
+        RECT btnDeviceDropdown = { 135, 212, rcClient.right - 24, 234 };
+        DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(51, 65, 85), mainTextCol);
+
+        // Row 5: Buffer Size Selector Dropdown
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 28, 252, L"Buffer Size:", 12);
+        const wchar_t* bufLabels[] = {
+            L"128 samples (~2.6ms, Instant)  ▾",
+            L"256 samples (~5.3ms, Low)  ▾",
+            L"512 samples (~10.6ms, Fast)  ▾",
+            L"1024 samples (~21.3ms, Smooth Default)  ▾",
+            L"2048 samples (~42.6ms, Safe)  ▾"
+        };
+        int bufIdx = g_bufferSizeIndex.load();
+        if (bufIdx < 0 || bufIdx > 4) bufIdx = 3;
+        RECT btnBufferDropdown = { 135, 246, rcClient.right - 24, 268 };
+        DrawPillButtonW(memDC, btnBufferDropdown, bufLabels[bufIdx], RGB(51, 65, 85), mainTextCol);
+
+        // --- 3. GROUP 2: NETWORK & CONNECTED CLIENTS (Clean Inset Group) ---
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(255, 255, 255));
+        SetTextColor(memDC, headerTextCol);
+        TextOutW(memDC, 18, 304, L"NETWORK & CONNECTED CLIENTS", 27);
 
-        std::wstring statusText = isActive ? L"SERVER STATUS: RUNNING (5000)" : L"SERVER STATUS: STOPPED";
-        TextOutW(memDC, 48, 24, statusText.c_str(), (int)statusText.length());
+        RECT cardNet = { 16, 322, rcClient.right - 16, 436 };
+        DrawRoundedRectOutline(memDC, cardNet, cardBgColor, cardBorderCol, 6);
 
         SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(160, 175, 200));
+        SetTextColor(memDC, mainTextCol);
+        TextOutW(memDC, 28, 334, L"Server IP:", 10);
 
         std::string localIps, c1Ip, c2Ip;
         {
@@ -1971,8 +2098,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             c1Ip = g_client1IpStr;
             c2Ip = g_client2IpStr;
         }
-
-        TextOutW(memDC, 28, 50, L"Local IP:", 9);
 
         std::vector<std::string> ipList;
         {
@@ -1987,7 +2112,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             }
         }
 
-        int startX = 90;
+        int startX = 105;
         int activeCopied = g_copiedIpIdx.load();
 
         for (size_t idx = 0; idx < ipList.size() && idx < 3; ++idx) {
@@ -1995,12 +2120,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SIZE sz;
             GetTextExtentPoint32W(memDC, wIp.c_str(), (int)wIp.length(), &sz);
 
-            int pillW = sz.cx + 10;
-            RECT rIpPill = { startX, 46, startX + pillW, 66 };
+            int pillW = sz.cx + 12;
+            RECT rIpPill = { startX, 330, startX + pillW, 350 };
 
             bool isCopied = ((int)idx == activeCopied);
-            COLORREF bgCol   = isCopied ? RGB(0, 230, 118) : RGB(28, 36, 52);
-            COLORREF textCol = isCopied ? RGB(18, 22, 33)  : RGB(0, 229, 255);
+            COLORREF bgCol   = isCopied ? accentGreen : RGB(51, 65, 85);
+            COLORREF textCol = isCopied ? RGB(15, 23, 42) : mainTextCol;
 
             std::wstring label = isCopied ? L"Copied!" : wIp;
             DrawPillButtonW(memDC, rIpPill, label.c_str(), bgCol, textCol);
@@ -2008,50 +2133,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             startX += pillW + 6;
         }
 
-        TextOutW(memDC, 28, 76, L"PC Audio Device:", 16);
-        std::string selectedDevName = "Default Playback Device";
-        {
-            std::lock_guard<std::mutex> lock(g_deviceMutex);
-            int selIdx = g_selectedDeviceIndex.load();
-            if (selIdx >= 0 && selIdx < (int)g_audioDevices.size()) {
-                selectedDevName = g_audioDevices[selIdx].name;
-            }
-        }
-        if (selectedDevName.length() > 34) selectedDevName = selectedDevName.substr(0, 31) + "...";
-        std::wstring wDevBtnName = Utf8ToWide(selectedDevName) + L"  v";
-
-        RECT btnDeviceDropdown = { 140, 74, rcClient.right - 28, 94 };
-        DrawPillButtonW(memDC, btnDeviceDropdown, wDevBtnName.c_str(), RGB(32, 40, 58), RGB(0, 229, 255));
-
-        RECT btnToggleServer = { rcClient.right - 116, 20, rcClient.right - 28, 44 };
-        if (isActive) {
-            DrawPillButtonW(memDC, btnToggleServer, L"STOP SERVER", RGB(55, 25, 33), RGB(255, 82, 82));
-        } else {
-            DrawPillButtonW(memDC, btnToggleServer, L"START SERVER", RGB(0, 230, 118), RGB(18, 22, 33));
-        }
-
-        // Active Clients Card
-        RECT card2 = { 16, 116, rcClient.right - 16, 192 };
-        DrawRoundedRectOutline(memDC, card2, cardBgColor, cardBorderColor, 14);
-
-        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring card2Title = L"CONNECTED CLIENTS";
-        TextOutW(memDC, 28, 122, card2Title.c_str(), (int)card2Title.length());
-
-        if (g_clientSockets.size() >= 2) {
-            RECT btnSwapLR = { rcClient.right - 95, 120, rcClient.right - 28, 138 };
-            DrawPillButtonW(memDC, btnSwapLR, L"Swap L/R", RGB(32, 40, 58), RGB(0, 229, 255));
-        }
-
-        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-
+        // Connected Clients Rows
         if (c1Ip == "None" && c2Ip == "None") {
-            SetTextColor(memDC, RGB(130, 145, 170));
-            std::wstring idleText = L"[Idle] No active clients connected. Open DeskSound app on phone.";
-            TextOutW(memDC, 28, 148, idleText.c_str(), (int)idleText.length());
+            SetTextColor(memDC, subTextCol);
+            std::wstring idleText = L"No active clients connected. Open DeskSound app on phone.";
+            TextOutW(memDC, 28, 370, idleText.c_str(), (int)idleText.length());
         } else {
-            SetTextColor(memDC, RGB(255, 255, 255));
+            SetTextColor(memDC, mainTextCol);
 
             auto formatClientIp = [](const std::string& ip) -> std::wstring {
                 if (ip.empty() || ip == "None") return L"None";
@@ -2063,202 +2151,113 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 }
             };
 
-            std::wstring c1Text = L"Client #1: " + formatClientIp(c1Ip);
-            std::wstring c2Text = L"Client #2: " + formatClientIp(c2Ip);
-
-            TextOutW(memDC, 28, 144, c1Text.c_str(), (int)c1Text.length());
-            TextOutW(memDC, 28, 166, c2Text.c_str(), (int)c2Text.length());
-
             if (c1Ip != "None") {
-                RECT btnDropdownC1 = { rcClient.right - 100, 143, rcClient.right - 56, 161 };
-                RECT btnKickClient1= { rcClient.right - 50, 143, rcClient.right - 28, 161 };
+                std::wstring c1Text = L"Client #1: " + formatClientIp(c1Ip);
+                TextOutW(memDC, 28, 366, c1Text.c_str(), (int)c1Text.length());
+
+                RECT btnDropdownC1 = { rcClient.right - 110, 362, rcClient.right - 60, 382 };
+                RECT btnKickClient1= { rcClient.right - 54, 362, rcClient.right - 24, 382 };
 
                 ClientChannelMode ch1 = g_client1Channel.load();
-                const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"L  v" : (ch1 == CLIENT_MODE_RIGHT) ? L"R  v" : L"L+R  v";
+                const wchar_t* labelC1 = (ch1 == CLIENT_MODE_LEFT) ? L"L  ▾" : (ch1 == CLIENT_MODE_RIGHT) ? L"R  ▾" : L"L+R  ▾";
 
-                DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(32, 40, 58), RGB(0, 229, 255));
-                DrawPillButtonW(memDC, btnKickClient1, L"✕", RGB(255, 82, 82), RGB(255, 255, 255));
+                DrawPillButtonW(memDC, btnDropdownC1, labelC1, RGB(51, 65, 85), mainTextCol);
+                DrawPillButtonW(memDC, btnKickClient1, L"Kick ✕", accentRed, mainTextCol);
             }
 
             if (c2Ip != "None") {
-                RECT btnDropdownC2 = { rcClient.right - 100, 165, rcClient.right - 56, 183 };
-                RECT btnKickClient2= { rcClient.right - 50, 165, rcClient.right - 28, 183 };
+                std::wstring c2Text = L"Client #2: " + formatClientIp(c2Ip);
+                TextOutW(memDC, 28, 396, c2Text.c_str(), (int)c2Text.length());
+
+                RECT btnDropdownC2 = { rcClient.right - 110, 392, rcClient.right - 60, 412 };
+                RECT btnKickClient2= { rcClient.right - 54, 392, rcClient.right - 24, 412 };
 
                 ClientChannelMode ch2 = g_client2Channel.load();
-                const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"L  v" : (ch2 == CLIENT_MODE_RIGHT) ? L"R  v" : L"L+R  v";
+                const wchar_t* labelC2 = (ch2 == CLIENT_MODE_LEFT) ? L"L  ▾" : (ch2 == CLIENT_MODE_RIGHT) ? L"R  ▾" : L"L+R  ▾";
 
-                DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(32, 40, 58), RGB(0, 229, 255));
-                DrawPillButtonW(memDC, btnKickClient2, L"✕", RGB(255, 82, 82), RGB(255, 255, 255));
+                DrawPillButtonW(memDC, btnDropdownC2, labelC2, RGB(51, 65, 85), mainTextCol);
+                DrawPillButtonW(memDC, btnKickClient2, L"Kick ✕", accentRed, mainTextCol);
             }
         }
 
-        // Stereo Peak Audio Visualizer Meter Card
-        RECT card3 = { 16, 202, rcClient.right - 16, 288 };
-        DrawRoundedRectOutline(memDC, card3, cardBgColor, cardBorderColor, 14);
+        // --- 4. Bottom System Checkboxes & Status Bar ---
+        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(memDC, subTextCol);
+
+        // Bottom Status Bar Bar Container
+        RECT statusBarBg = { 0, rcClient.bottom - 32, rcClient.right, rcClient.bottom };
+        HBRUSH statusBrush = CreateSolidBrush(RGB(9, 13, 22));
+        FillRect(memDC, &statusBarBg, statusBrush);
+        DeleteObject(statusBrush);
+
+        HPEN linePen = CreatePen(PS_SOLID, 1, cardBorderCol);
+        HPEN oldP = (HPEN)SelectObject(memDC, linePen);
+        MoveToEx(memDC, 0, rcClient.bottom - 32, NULL);
+        LineTo(memDC, rcClient.right, rcClient.bottom - 32);
+        SelectObject(memDC, oldP);
+        DeleteObject(linePen);
 
         SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(255, 255, 255));
-        std::wstring card3Title = L"LIVE AUDIO VISUALIZER";
-        TextOutW(memDC, 28, 208, card3Title.c_str(), (int)card3Title.length());
+        SetTextColor(memDC, isActive ? accentGreen : accentRed);
+        std::wstring statusLbl = isActive ? L"● ACTIVE (Port 5000)" : L"○ STOPPED";
+        TextOutW(memDC, 12, rcClient.bottom - 24, statusLbl.c_str(), (int)statusLbl.length());
 
-        RECT btnTestSound = { rcClient.right - 95, 206, rcClient.right - 28, 226 };
-        bool isTesting = g_isTestAudioPlaying.load();
-        DrawPillButtonW(memDC, btnTestSound, isTesting ? L"Playing..." : L"Test Sound", isTesting ? RGB(0, 230, 118) : RGB(32, 40, 58), isTesting ? RGB(18, 22, 33) : RGB(0, 229, 255));
+        // Latency & Bitrate badges
+        RECT rBadge1 = { rcClient.right - 145, rcClient.bottom - 26, rcClient.right - 80, rcClient.bottom - 6 };
+        RECT rBadge2 = { rcClient.right - 75, rcClient.bottom - 26, rcClient.right - 10, rcClient.bottom - 6 };
 
-        RECT rBarL_Bg = { 58, 233, rcClient.right - 28, 249 };
-        RECT rBarR_Bg = { 58, 257, rcClient.right - 28, 273 };
-        DrawRoundedRect(memDC, rBarL_Bg, RGB(14, 18, 26), 6);
-        DrawRoundedRect(memDC, rBarR_Bg, RGB(14, 18, 26), 6);
+        const wchar_t* bufLatencies[] = { L"~2.6ms", L"~5.3ms", L"~10.6ms", L"~21.3ms", L"~42.6ms" };
+        std::wstring latStr = bufLatencies[bufIdx];
 
-        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(160, 175, 200));
-        TextOutW(memDC, 28, 234, L"L:", 2);
-        TextOutW(memDC, 28, 258, L"R:", 2);
+        DrawPillButtonW(memDC, rBadge1, L"0.8 Mbps", RGB(30, 41, 59), accentBlue);
+        DrawPillButtonW(memDC, rBadge2, latStr.c_str(), RGB(30, 41, 59), accentBlue);
 
-        float rmsL = g_rmsL_smooth.load();
-        float rmsR = g_rmsR_smooth.load();
-
-        auto DrawLedBar = [&](int startX, int startY, int width, float level) {
-            int numSegments = 32;
-            int gap = 2;
-            int segWidth = (width - (numSegments - 1) * gap) / numSegments;
-            int activeSegs = (int)(level * 3.0f * numSegments);
-            if (activeSegs > numSegments) activeSegs = numSegments;
-
-            for (int i = 0; i < numSegments; ++i) {
-                int segX1 = startX + i * (segWidth + gap);
-                RECT rSeg = { segX1, startY, segX1 + segWidth, startY + 16 };
-                COLORREF segColor;
-                if (i < activeSegs) {
-                    if (i < (int)(numSegments * 0.65f)) segColor = RGB(0, 229, 255);
-                    else if (i < (int)(numSegments * 0.85f)) segColor = RGB(0, 230, 118);
-                    else segColor = RGB(255, 82, 82);
-                } else {
-                    segColor = RGB(22, 28, 40);
-                }
-                DrawRoundedRect(memDC, rSeg, segColor, 3);
-            }
-        };
-
-        DrawLedBar(58, 233, (rcClient.right - 28) - 58, rmsL);
-        DrawLedBar(58, 257, (rcClient.right - 28) - 58, rmsR);
-
-        // Volume & Channel Gain Control Card
-        RECT card4 = { 16, 298, rcClient.right - 16, 454 };
-        DrawRoundedRectOutline(memDC, card4, cardBgColor, cardBorderColor, 14);
-
-        SelectObject(memDC, g_hFontBold ? g_hFontBold : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(0, 229, 255));
-        std::wstring card4Title = L"VOLUME & CHANNEL GAIN";
-        TextOutW(memDC, 28, 306, card4Title.c_str(), (int)card4Title.length());
-
-        RECT btnReset = { rcClient.right - 70, 304, rcClient.right - 28, 324 };
-        DrawPillButtonW(memDC, btnReset, L"Reset", RGB(34, 42, 60), RGB(255, 255, 255));
-
-        SelectObject(memDC, g_hFontSub ? g_hFontSub : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(255, 255, 255));
-        TextOutW(memDC, 28, 338, L"Master Volume:", 14);
-        TextOutW(memDC, 28, 376, L"Left (L) Volume:", 16);
-        TextOutW(memDC, 28, 414, L"Right (R) Volume:", 17);
-
-        int trackX1 = 135, trackX2 = rcClient.right - 110;
-        int trackW = trackX2 - trackX1;
-
-        float mNorm = std::max(0.0f, std::min(1.0f, g_masterVolume.load() / 100.0f));
-        RECT rTrackM_Bg = { trackX1, 342, trackX2, 348 };
-        DrawRoundedRect(memDC, rTrackM_Bg, RGB(24, 30, 44), 6);
-        if (mNorm > 0.0f) {
-            RECT rTrackM_Fill = { trackX1, 342, trackX1 + (int)(mNorm * trackW), 348 };
-            DrawRoundedRect(memDC, rTrackM_Fill, RGB(0, 229, 255), 6);
-        }
-        int kxM = trackX1 + (int)(mNorm * trackW);
-        RECT rKnobM = { kxM - 7, 338, kxM + 7, 352 };
-        DrawRoundedRect(memDC, rKnobM, RGB(255, 255, 255), 14);
-
-        float gLNorm = std::max(0.0f, std::min(1.0f, g_gainL.load() / 100.0f));
-        RECT rTrackL_Bg = { trackX1, 380, trackX2, 386 };
-        DrawRoundedRect(memDC, rTrackL_Bg, RGB(24, 30, 44), 6);
-        if (gLNorm > 0.0f) {
-            RECT rTrackL_Fill = { trackX1, 380, trackX1 + (int)(gLNorm * trackW), 386 };
-            DrawRoundedRect(memDC, rTrackL_Fill, RGB(0, 229, 255), 6);
-        }
-        int kxL = trackX1 + (int)(gLNorm * trackW);
-        RECT rKnobL = { kxL - 7, 376, kxL + 7, 390 };
-        DrawRoundedRect(memDC, rKnobL, RGB(255, 255, 255), 14);
-
-        float gRNorm = std::max(0.0f, std::min(1.0f, g_gainR.load() / 100.0f));
-        RECT rTrackR_Bg = { trackX1, 418, trackX2, 424 };
-        DrawRoundedRect(memDC, rTrackR_Bg, RGB(24, 30, 44), 6);
-        if (gRNorm > 0.0f) {
-            RECT rTrackR_Fill = { trackX1, 418, trackX1 + (int)(gRNorm * trackW), 424 };
-            DrawRoundedRect(memDC, rTrackR_Fill, RGB(0, 229, 255), 6);
-        }
-        int kxR = trackX1 + (int)(gRNorm * trackW);
-        RECT rKnobR = { kxR - 7, 414, kxR + 7, 428 };
-        DrawRoundedRect(memDC, rKnobR, RGB(255, 255, 255), 14);
-
-        RECT btnMuteMaster = { rcClient.right - 100, 336, rcClient.right - 65, 356 };
-        RECT btnMuteLeft   = { rcClient.right - 100, 374, rcClient.right - 65, 394 };
-        RECT btnMuteRight  = { rcClient.right - 100, 412, rcClient.right - 65, 432 };
-
-        bool isMutedM = g_isMuted.load();
-        bool isMutedL = g_isMutedL.load();
-        bool isMutedR = g_isMutedR.load();
-
-        DrawPillButtonW(memDC, btnMuteMaster, isMutedM ? L"🔇" : L"🔊", isMutedM ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedM ? RGB(255, 255, 255) : RGB(0, 229, 255));
-        DrawPillButtonW(memDC, btnMuteLeft,   isMutedL ? L"🔇" : L"🔊", isMutedL ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedL ? RGB(255, 255, 255) : RGB(0, 229, 255));
-        DrawPillButtonW(memDC, btnMuteRight,  isMutedR ? L"🔇" : L"🔊", isMutedR ? RGB(255, 82, 82) : RGB(34, 42, 60), isMutedR ? RGB(255, 255, 255) : RGB(0, 229, 255));
-
-        wchar_t strMaster[16], strL[16], strR[16];
-        swprintf(strMaster, 16, L"%d%%", (int)g_masterVolume.load());
-        swprintf(strL, 16, L"%d%%", (int)g_gainL.load());
-        swprintf(strR, 16, L"%d%%", (int)g_gainR.load());
-
-        SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, rcClient.right - 58, 338, strMaster, (int)wcslen(strMaster));
-        TextOutW(memDC, rcClient.right - 58, 376, strL, (int)wcslen(strL));
-        TextOutW(memDC, rcClient.right - 58, 414, strR, (int)wcslen(strR));
-
-        SelectObject(memDC, g_hFontFooter ? g_hFontFooter : (HFONT)GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(memDC, RGB(0, 229, 255));
-        TextOutW(memDC, rcClient.right - 105, 468, L"About Developer", 15);
-
-        // Draw active dropdown popup menu overlay at VERY END (Highest Z-Order)
+        // --- 5. Draw active dropdown popup menu overlay (Highest Z-Order) ---
         int openMenu = g_openDropdown.load();
         if (openMenu == 1 && c1Ip != "None") {
-            RECT rMenuBg = { rcClient.right - 102, 162, rcClient.right - 54, 224 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { rcClient.right - 100, 164, rcClient.right - 56, 182 };
-            RECT rOpt2 = { rcClient.right - 100, 184, rcClient.right - 56, 202 };
-            RECT rOpt3 = { rcClient.right - 100, 204, rcClient.right - 56, 222 };
+            RECT rMenuBg = { rcClient.right - 112, 384, rcClient.right - 58, 446 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(15, 23, 42), 4);
+            RECT rOpt1 = { rcClient.right - 110, 386, rcClient.right - 60, 404 };
+            RECT rOpt2 = { rcClient.right - 110, 406, rcClient.right - 60, 424 };
+            RECT rOpt3 = { rcClient.right - 110, 426, rcClient.right - 60, 444 };
             ClientChannelMode ch1 = g_client1Channel.load();
-            DrawPillButtonW(memDC, rOpt1, L"L",   (ch1 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButtonW(memDC, rOpt2, L"R",   (ch1 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButtonW(memDC, rOpt3, L"L+R", (ch1 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch1 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButtonW(memDC, rOpt1, L"L",   (ch1 == CLIENT_MODE_LEFT)   ? accentBlue : RGB(51, 65, 85), mainTextCol);
+            DrawPillButtonW(memDC, rOpt2, L"R",   (ch1 == CLIENT_MODE_RIGHT)  ? accentBlue : RGB(51, 65, 85), mainTextCol);
+            DrawPillButtonW(memDC, rOpt3, L"L+R", (ch1 == CLIENT_MODE_STEREO) ? accentBlue : RGB(51, 65, 85), mainTextCol);
         } else if (openMenu == 2 && c2Ip != "None") {
-            RECT rMenuBg = { rcClient.right - 102, 184, rcClient.right - 54, 246 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            RECT rOpt1 = { rcClient.right - 100, 186, rcClient.right - 56, 204 };
-            RECT rOpt2 = { rcClient.right - 100, 206, rcClient.right - 56, 224 };
-            RECT rOpt3 = { rcClient.right - 100, 226, rcClient.right - 56, 244 };
+            RECT rMenuBg = { rcClient.right - 112, 414, rcClient.right - 58, 476 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(15, 23, 42), 4);
+            RECT rOpt1 = { rcClient.right - 110, 416, rcClient.right - 60, 434 };
+            RECT rOpt2 = { rcClient.right - 110, 436, rcClient.right - 60, 454 };
+            RECT rOpt3 = { rcClient.right - 110, 456, rcClient.right - 60, 474 };
             ClientChannelMode ch2 = g_client2Channel.load();
-            DrawPillButtonW(memDC, rOpt1, L"L",   (ch2 == CLIENT_MODE_LEFT)   ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_LEFT)   ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButtonW(memDC, rOpt2, L"R",   (ch2 == CLIENT_MODE_RIGHT)  ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_RIGHT)  ? RGB(18, 22, 33) : RGB(255, 255, 255));
-            DrawPillButtonW(memDC, rOpt3, L"L+R", (ch2 == CLIENT_MODE_STEREO) ? RGB(0, 229, 255) : RGB(34, 42, 60), (ch2 == CLIENT_MODE_STEREO) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+            DrawPillButtonW(memDC, rOpt1, L"L",   (ch2 == CLIENT_MODE_LEFT)   ? accentBlue : RGB(51, 65, 85), mainTextCol);
+            DrawPillButtonW(memDC, rOpt2, L"R",   (ch2 == CLIENT_MODE_RIGHT)  ? accentBlue : RGB(51, 65, 85), mainTextCol);
+            DrawPillButtonW(memDC, rOpt3, L"L+R", (ch2 == CLIENT_MODE_STEREO) ? accentBlue : RGB(51, 65, 85), mainTextCol);
         } else if (openMenu == 3) {
             std::lock_guard<std::mutex> lock(g_deviceMutex);
             int count = (int)g_audioDevices.size();
             if (count > 8) count = 8;
-            RECT rMenuBg = { 148, 96, rcClient.right - 18, 98 + count * 20 };
-            DrawRoundedRect(memDC, rMenuBg, RGB(18, 22, 33), 6);
-            int itemY = 98;
+            RECT rMenuBg = { 135, 236, rcClient.right - 24, 238 + count * 20 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(15, 23, 42), 4);
+            int itemY = 238;
             int selIdx = g_selectedDeviceIndex.load();
             for (size_t k = 0; k < g_audioDevices.size() && k < 8; ++k) {
-                RECT rOpt = { 150, itemY, rcClient.right - 20, itemY + 18 };
+                RECT rOpt = { 137, itemY, rcClient.right - 26, itemY + 18 };
                 std::string devName = g_audioDevices[k].name;
                 if (devName.length() > 34) devName = devName.substr(0, 31) + "...";
                 std::wstring wDevName = Utf8ToWide(devName);
-                DrawPillButtonW(memDC, rOpt, wDevName.c_str(), (selIdx == (int)k) ? RGB(0, 229, 255) : RGB(34, 42, 60), (selIdx == (int)k) ? RGB(18, 22, 33) : RGB(255, 255, 255));
+                DrawPillButtonW(memDC, rOpt, wDevName.c_str(), (selIdx == (int)k) ? accentBlue : RGB(51, 65, 85), mainTextCol);
+                itemY += 20;
+            }
+        } else if (openMenu == 4) {
+            RECT rMenuBg = { 135, 270, rcClient.right - 24, 270 + 5 * 20 };
+            DrawRoundedRect(memDC, rMenuBg, RGB(15, 23, 42), 4);
+            int itemY = 272;
+            int curBufIdx = g_bufferSizeIndex.load();
+            for (int k = 0; k < 5; ++k) {
+                RECT rOpt = { 137, itemY, rcClient.right - 26, itemY + 18 };
+                DrawPillButtonW(memDC, rOpt, bufLabels[k], (curBufIdx == k) ? accentBlue : RGB(51, 65, 85), mainTextCol);
                 itemY += 20;
             }
         }
@@ -2271,6 +2270,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         EndPaint(hwnd, &ps);
         break;
     }
+
 
     case WM_CTLCOLORSTATIC: {
         HDC hdcStatic = (HDC)wParam;
