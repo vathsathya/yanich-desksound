@@ -3,10 +3,10 @@
 
 #define APP_VERSION_MAJOR 1
 #define APP_VERSION_MINOR 2
-#define APP_VERSION_PATCH 6
+#define APP_VERSION_PATCH 7
 #define APP_VERSION_BUILD 0
 
-#define APP_VERSION_STRING "1.2.6"
-#define APP_VERSION_TAG "v1.2.6"
+#define APP_VERSION_STRING "1.2.7"
+#define APP_VERSION_TAG "v1.2.7"
 
 #endif // VERSION_H

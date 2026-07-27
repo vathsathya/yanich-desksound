@@ -29,9 +29,8 @@ jobs:
         shell: cmd
         run: |
           set /p VERSION=<version.txt
-          cd server-windows
-          rc.exe /fo resources\resource.res /Iinclude resources\resource.rc
-          cl.exe /utf-8 /EHsc /std:c++17 src\main.cpp resources\resource.res /Iinclude /Fe:..\desksound.exe /link /subsystem:windows
+          cd server
+          cl.exe /utf-8 /EHsc /std:c++17 src\main.cpp src\gui_app.cpp src\config_manager.cpp src\logger.cpp src\network_server.cpp src\audio_wasapi.cpp thirdparty\imgui\imgui.cpp thirdparty\imgui\imgui_draw.cpp thirdparty\imgui\imgui_widgets.cpp thirdparty\imgui\imgui_tables.cpp thirdparty\imgui\imgui_impl_win32.cpp thirdparty\imgui\imgui_impl_dx11.cpp /Iinclude /Ithirdparty\imgui /Fe:..\desksound.exe /link /subsystem:windows d3d11.lib d3dcompiler.lib Ws2_32.lib Advapi32.lib Ole32.lib
           cd ..
           if exist desksound.exe (
               copy /Y desksound.exe yanich-desksound_v%VERSION%.exe
@@ -88,7 +87,7 @@ jobs:
       - name: Install Linux Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpulse-dev build-essential cmake libgtk-3-dev libayatana-appindicator3-dev pkg-config
+          sudo apt-get install -y libpulse-dev libglfw3-dev libgl1-mesa-dev build-essential cmake pkg-config
 
       - name: Compile Linux Server Binary & Package
         run: |
