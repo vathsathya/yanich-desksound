@@ -52,7 +52,8 @@
 enum ClientChannelMode { CLIENT_MODE_STEREO = 0, CLIENT_MODE_LEFT = 1, CLIENT_MODE_RIGHT = 2 };
 std::atomic<ClientChannelMode> g_client1Channel{CLIENT_MODE_LEFT};
 std::atomic<ClientChannelMode> g_client2Channel{CLIENT_MODE_RIGHT};
-std::atomic<int> g_openDropdown{0}; // 0 = closed, 1 = Client 1 menu open, 2 = Client 2 menu open, 3 = PC Audio Device menu open
+std::atomic<int> g_openDropdown{0}; // 0 = closed, 1 = Client 1 menu open, 2 = Client 2 menu open, 3 = PC Audio Device menu open, 4 = Buffer size menu open
+std::atomic<int> g_bufferSizeIndex{3}; // 0=128, 1=256, 2=512, 3=1024, 4=2048
 
 std::atomic<bool> g_updateAvailable{false};
 std::string g_latestUpdateTag = "";
@@ -1397,12 +1398,18 @@ void HandleMousePos(HWND hwnd, int mx, int my, bool isClick) {
             return;
         }
 
+        RECT btnLogs = { rcClient.right - 80, 18, rcClient.right - 20, 40 };
         if (g_updateAvailable.load()) {
+            btnLogs = { rcClient.right - 180 - 75, 18, rcClient.right - 180 - 10, 40 };
             RECT btnUpdate = { rcClient.right - 180, 18, rcClient.right - 20, 40 };
             if (PtInRect(&btnUpdate, pt)) {
                 ShellExecuteA(NULL, "open", g_latestUpdateUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
                 return;
             }
+        }
+        if (PtInRect(&btnLogs, pt)) {
+            ShowLogDialog(hwnd);
+            return;
         }
 
         // Check 1-Click IP Capsule click
@@ -1762,6 +1769,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             bool isHand = false;
 
+            RECT btnLogs = { rcClient.right - 80, 12, rcClient.right - 20, 36 };
+            if (g_updateAvailable.load()) {
+                btnLogs = { rcClient.right - 180 - 75, 12, rcClient.right - 180 - 10, 36 };
+            }
+            if (PtInRect(&btnLogs, pt)) isHand = true;
+
             // 1. Footer About Developer link
             RECT rFooterText = { rcClient.right - 115, 486, rcClient.right - 10, 510 };
             if (PtInRect(&rFooterText, pt)) isHand = true;
@@ -1914,11 +1927,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         SetBkMode(memDC, TRANSPARENT);
 
+        RECT btnLogsDraw = { rcClient.right - 80, 12, rcClient.right - 20, 34 };
         if (g_updateAvailable.load()) {
+            btnLogsDraw = { rcClient.right - 180 - 75, 12, rcClient.right - 180 - 10, 34 };
             RECT btnUpdate = { rcClient.right - 180, 12, rcClient.right - 20, 34 };
             std::wstring btnText = L"🚀 UPDATE " + Utf8ToWide(g_latestUpdateTag);
             DrawPillButtonW(memDC, btnUpdate, btnText.c_str(), RGB(0, 229, 255), RGB(18, 22, 33));
         }
+        DrawPillButtonW(memDC, btnLogsDraw, L"Logs 📜", RGB(32, 40, 58), RGB(0, 229, 255));
 
         COLORREF cardBgColor = RGB(21, 27, 39);
         COLORREF cardBorderColor = RGB(34, 44, 61);
