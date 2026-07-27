@@ -40,12 +40,12 @@ HEADERS=(
 )
 
 # 3. Check for existing release
-RELEASES_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
-EXISTING_RELEASE_ID=$(curl -s "${HEADERS[@]}" "${RELEASES_URL}" | grep -B 2 "\"tag_name\": \"${TAG_NAME}\"" | grep "\"id\":" | head -n 1 | awk '{print $2}' | tr -d ',')
+TAG_RELEASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags/${TAG_NAME}"
+EXISTING_RELEASE_ID=$(curl -s "${HEADERS[@]}" "${TAG_RELEASE_URL}" | grep '"id":' | head -n 1 | awk '{print $2}' | tr -d ',')
 
-if [ -n "$EXISTING_RELEASE_ID" ]; then
+if [ -n "$EXISTING_RELEASE_ID" ] && [ "$EXISTING_RELEASE_ID" != "null" ]; then
     echo "[!] Deleting existing release ID ${EXISTING_RELEASE_ID} for ${TAG_NAME}..."
-    curl -s -X DELETE "${HEADERS[@]}" "${RELEASES_URL}/${EXISTING_RELEASE_ID}" > /dev/null
+    curl -s -X DELETE "${HEADERS[@]}" "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/${EXISTING_RELEASE_ID}" > /dev/null
 fi
 
 # 4. Create Release
