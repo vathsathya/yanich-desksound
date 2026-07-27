@@ -14,23 +14,84 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
 #include <d3d11.h>
 #include "../thirdparty/imgui/imgui_impl_win32.h"
 #include "../thirdparty/imgui/imgui_impl_dx11.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "shell32.lib")
+
+#define WM_TRAYICON (WM_USER + 1)
+#define IDM_TRAY_SHOW          1001
+#define IDM_TRAY_TOGGLE_SERVER 1002
+#define IDM_TRAY_EXIT          1003
 
 static ID3D11Device*            g_pd3dDevice = nullptr;
 static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
 static IDXGISwapChain*          g_pSwapChain = nullptr;
 static ID3D11RenderTargetView*  g_mainRenderTargetView = nullptr;
+static NOTIFYICONDATAW          g_nid = {};
 
 bool CreateDeviceD3D(HWND hWnd);
 void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+static void InitTrayIcon(HWND hwnd) {
+    ZeroMemory(&g_nid, sizeof(g_nid));
+    g_nid.cbSize = sizeof(NOTIFYICONDATAW);
+    g_nid.hWnd = hwnd;
+    g_nid.uID = 1;
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_TRAYICON;
+    
+    HICON hIcon = (HICON)::LoadImageW(GetModuleHandle(NULL), L"app_icon.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    if (!hIcon) {
+        hIcon = ::LoadIcon(NULL, IDI_APPLICATION);
+    }
+    g_nid.hIcon = hIcon;
+    wcscpy_s(g_nid.szTip, L"Yanich DeskSound Server");
+    
+    ::Shell_NotifyIconW(NIM_ADD, &g_nid);
+}
+
+static void RemoveTrayIcon() {
+    if (g_nid.hWnd) {
+        ::Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        if (g_nid.hIcon) {
+            ::DestroyIcon(g_nid.hIcon);
+            g_nid.hIcon = NULL;
+        }
+        g_nid.hWnd = NULL;
+    }
+}
+
+static void ShowTrayContextMenu(HWND hwnd) {
+    POINT pt;
+    ::GetCursorPos(&pt);
+    HMENU hMenu = ::CreatePopupMenu();
+    if (hMenu) {
+        ::AppendMenuW(hMenu, MF_STRING, IDM_TRAY_SHOW, L"Open Yanich DeskSound");
+        ::AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+        
+        bool isServerRunning = NetworkServer::Instance().IsActive();
+        if (isServerRunning) {
+            ::AppendMenuW(hMenu, MF_STRING, IDM_TRAY_TOGGLE_SERVER, L"Stop Server");
+        } else {
+            ::AppendMenuW(hMenu, MF_STRING, IDM_TRAY_TOGGLE_SERVER, L"Start Server");
+        }
+        
+        ::AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+        ::AppendMenuW(hMenu, MF_STRING, IDM_TRAY_EXIT, L"Exit");
+
+        ::SetForegroundWindow(hwnd);
+        ::TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+        ::DestroyMenu(hMenu);
+    }
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     (void)hPrevInstance; (void)lpCmdLine;
@@ -53,7 +114,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Create Application Window
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, L"YanichDeskSoundClass", NULL };
     ::RegisterClassExW(&wc);
-    RECT rect = { 0, 0, 470, 550 };
+    RECT rect = { 0, 0, 1100, 760 };
     ::AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
     int winWidth = rect.right - rect.left;
     int winHeight = rect.bottom - rect.top;
@@ -64,6 +125,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
         return 1;
     }
+
+    InitTrayIcon(hwnd);
 
     ::ShowWindow(hwnd, SW_SHOWDEFAULT);
     ::UpdateWindow(hwnd);
@@ -114,6 +177,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
 
+    RemoveTrayIcon();
     CleanupDeviceD3D();
     ::DestroyWindow(hwnd);
     ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
@@ -184,8 +248,50 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
     case WM_SYSCOMMAND:
         if ((wParam & 0xfff0) == SC_KEYMENU) return 0;
+        if ((wParam & 0xfff0) == SC_MINIMIZE) {
+            ServerConfig cfg = ConfigManager::Instance().GetConfig();
+            if (cfg.minimizeToTray) {
+                ::ShowWindow(hWnd, SW_HIDE);
+                return 0;
+            }
+        }
         break;
+    case WM_CLOSE:
+        {
+            ServerConfig cfg = ConfigManager::Instance().GetConfig();
+            if (cfg.minimizeToTray) {
+                ::ShowWindow(hWnd, SW_HIDE);
+                return 0;
+            } else {
+                ::DestroyWindow(hWnd);
+                return 0;
+            }
+        }
+    case WM_TRAYICON:
+        if (lParam == WM_LBUTTONDBLCLK || lParam == WM_LBUTTONUP) {
+            ::ShowWindow(hWnd, SW_RESTORE);
+            ::SetForegroundWindow(hWnd);
+        } else if (lParam == WM_RBUTTONUP) {
+            ShowTrayContextMenu(hWnd);
+        }
+        return 0;
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case IDM_TRAY_SHOW:
+            ::ShowWindow(hWnd, SW_RESTORE);
+            ::SetForegroundWindow(hWnd);
+            break;
+        case IDM_TRAY_TOGGLE_SERVER:
+            NetworkServer::Instance().SetActive(!NetworkServer::Instance().IsActive());
+            break;
+        case IDM_TRAY_EXIT:
+            RemoveTrayIcon();
+            ::DestroyWindow(hWnd);
+            break;
+        }
+        return 0;
     case WM_DESTROY:
+        RemoveTrayIcon();
         ::PostQuitMessage(0);
         return 0;
     }

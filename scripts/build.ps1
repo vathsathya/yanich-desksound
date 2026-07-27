@@ -41,9 +41,10 @@ Write-Host "[+] Synced version.h to $versionStr at $headerPath" -ForegroundColor
 
 # 2. Compile Unified Windows Server (DirectX 11 + WASAPI + ImGui)
 Write-Host "`n[2/4] Compiling Windows Server (server/)..." -ForegroundColor Cyan
-Stop-Process -Name 'desksound' -ErrorAction SilentlyContinue
+Get-Process | Where-Object { $_.Name -like "*desksound*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
 
-$msvcCmd = 'call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1 && cd /d "' + "$rootDir\server" + '" && cl.exe /utf-8 /EHsc /std:c++17 src\main.cpp src\gui_app.cpp src\config_manager.cpp src\logger.cpp src\network_server.cpp src\audio_wasapi.cpp thirdparty\imgui\imgui.cpp thirdparty\imgui\imgui_draw.cpp thirdparty\imgui\imgui_widgets.cpp thirdparty\imgui\imgui_tables.cpp thirdparty\imgui\imgui_impl_win32.cpp thirdparty\imgui\imgui_impl_dx11.cpp /Iinclude /Ithirdparty\imgui /Fe:..\desksound.exe /link /subsystem:windows d3d11.lib d3dcompiler.lib Ws2_32.lib Advapi32.lib Ole32.lib'
+$msvcCmd = 'call "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1 && cd /d "' + "$rootDir\server" + '" && cl.exe /utf-8 /EHsc /std:c++17 src\main.cpp src\gui_app.cpp src\custom_widgets.cpp src\config_manager.cpp src\logger.cpp src\network_server.cpp src\audio_wasapi.cpp thirdparty\imgui\imgui.cpp thirdparty\imgui\imgui_draw.cpp thirdparty\imgui\imgui_widgets.cpp thirdparty\imgui\imgui_tables.cpp thirdparty\imgui\imgui_impl_win32.cpp thirdparty\imgui\imgui_impl_dx11.cpp /Iinclude /Ithirdparty\imgui /Fe:..\desksound.exe /link /subsystem:windows d3d11.lib d3dcompiler.lib Ws2_32.lib Advapi32.lib Ole32.lib'
 
 cmd /c $msvcCmd
 
