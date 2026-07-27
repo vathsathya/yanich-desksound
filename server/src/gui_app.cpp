@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "../include/gui_app.h"
 #include "../include/config_manager.h"
 #include "../include/network_server.h"
@@ -38,32 +39,35 @@ GuiApp& GuiApp::Instance() {
 }
 
 void GuiApp::Initialize() {
-    // --- Setup Clean Linux GTK Dark Slate ImGui Theme ---
+    // --- Setup Clean Dark Obsidian & Slate ImGui Design System ---
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 6.0f;
-    style.FrameRounding = 4.0f;
-    style.PopupRounding = 4.0f;
-    style.GrabRounding = 4.0f;
-    style.ItemSpacing = ImVec2(8.0f, 8.0f);
-    style.WindowPadding = ImVec2(14.0f, 14.0f);
-    style.FramePadding = ImVec2(8.0f, 4.0f);
+    style.WindowRounding    = 8.0f;
+    style.ChildRounding     = 6.0f;
+    style.FrameRounding     = 5.0f;
+    style.PopupRounding     = 6.0f;
+    style.GrabRounding      = 5.0f;
+    style.ItemSpacing       = ImVec2(8.0f, 7.0f);
+    style.WindowPadding     = ImVec2(14.0f, 14.0f);
+    style.FramePadding      = ImVec2(8.0f, 5.0f);
+    style.ScrollbarRounding = 6.0f;
+    style.ScrollbarSize     = 10.0f;
 
     ImVec4* colors = style.Colors;
     colors[ImGuiCol_WindowBg]             = ImVec4(0.06f, 0.09f, 0.16f, 1.00f); // #0f172a Slate 900
-    colors[ImGuiCol_ChildBg]              = ImVec4(0.12f, 0.16f, 0.23f, 1.00f); // #1e293b Slate 800 Card
-    colors[ImGuiCol_Border]               = ImVec4(0.20f, 0.25f, 0.33f, 1.00f); // #334155 Slate 700 Border
+    colors[ImGuiCol_ChildBg]              = ImVec4(0.10f, 0.14f, 0.22f, 1.00f); // #1a2334 Dark Slate Card
+    colors[ImGuiCol_Border]               = ImVec4(0.20f, 0.27f, 0.38f, 1.00f); // #334155 Slate Border
     colors[ImGuiCol_Text]                 = ImVec4(0.97f, 0.98f, 0.99f, 1.00f); // #f8fafc Primary Text
     colors[ImGuiCol_TextDisabled]         = ImVec4(0.58f, 0.64f, 0.72f, 1.00f); // #94a3b8 Secondary Text
-    colors[ImGuiCol_FrameBg]              = ImVec4(0.20f, 0.25f, 0.33f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered]       = ImVec4(0.26f, 0.32f, 0.42f, 1.00f);
-    colors[ImGuiCol_FrameBgActive]        = ImVec4(0.30f, 0.37f, 0.48f, 1.00f);
-    colors[ImGuiCol_Button]               = ImVec4(0.20f, 0.25f, 0.33f, 1.00f);
-    colors[ImGuiCol_ButtonHovered]        = ImVec4(0.26f, 0.32f, 0.42f, 1.00f);
+    colors[ImGuiCol_FrameBg]              = ImVec4(0.16f, 0.21f, 0.30f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered]       = ImVec4(0.22f, 0.29f, 0.40f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]        = ImVec4(0.26f, 0.34f, 0.46f, 1.00f);
+    colors[ImGuiCol_Button]               = ImVec4(0.18f, 0.24f, 0.35f, 1.00f);
+    colors[ImGuiCol_ButtonHovered]        = ImVec4(0.24f, 0.32f, 0.45f, 1.00f);
     colors[ImGuiCol_ButtonActive]         = ImVec4(0.15f, 0.39f, 0.92f, 1.00f);
-    colors[ImGuiCol_SliderGrab]           = ImVec4(0.15f, 0.39f, 0.92f, 1.00f); // #2563eb Royal Blue
-    colors[ImGuiCol_SliderGrabActive]     = ImVec4(0.22f, 0.48f, 0.98f, 1.00f);
-    colors[ImGuiCol_Header]               = ImVec4(0.20f, 0.25f, 0.33f, 1.00f);
-    colors[ImGuiCol_HeaderHovered]        = ImVec4(0.26f, 0.32f, 0.42f, 1.00f);
+    colors[ImGuiCol_SliderGrab]           = ImVec4(0.23f, 0.51f, 0.96f, 1.00f); // #3b82f6 Blue Slider
+    colors[ImGuiCol_SliderGrabActive]     = ImVec4(0.38f, 0.65f, 0.98f, 1.00f);
+    colors[ImGuiCol_Header]               = ImVec4(0.18f, 0.24f, 0.35f, 1.00f);
+    colors[ImGuiCol_HeaderHovered]        = ImVec4(0.24f, 0.32f, 0.45f, 1.00f);
     colors[ImGuiCol_HeaderActive]         = ImVec4(0.15f, 0.39f, 0.92f, 1.00f);
 }
 
@@ -83,52 +87,82 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::Begin("YanichDeskSoundMain", nullptr, windowFlags);
 
-    // --- 1. Clean Linux Style Header Bar ---
-    ImGui::Text("Yanich DeskSound");
+    // --- 1. Top Header Bar & Live Metrics ---
+    ImGui::TextColored(ImVec4(0.97f, 0.98f, 0.99f, 1.00f), "Yanich DeskSound");
     ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 95.0f);
-    if (ImGui::Button("Logs 📜", ImVec2(80.0f, 26.0f))) {
+    ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "v1.2.7");
+
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 90.0f);
+    if (ImGui::Button("Logs 📜", ImVec2(76.0f, 24.0f))) {
         m_showLogsModal = true;
     }
 
-    ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "Cross-Platform Server v1.2.6");
+    // Top Metrics Badges Bar
+    bool isServerActive = NetworkServer::Instance().IsActive();
+    auto clients = NetworkServer::Instance().GetClients();
+    float bitrate = NetworkServer::Instance().GetBitrateMbps();
+
+    if (isServerActive) {
+        ImGui::TextColored(ImVec4(0.06f, 0.73f, 0.49f, 1.00f), "● RUNNING (Port 5000)");
+    } else {
+        ImGui::TextColored(ImVec4(0.94f, 0.27f, 0.27f, 1.00f), "○ STOPPED");
+    }
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.23f, 0.51f, 0.96f, 1.00f), "|  ⚡ %.1f Mbps", bitrate);
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.55f, 0.36f, 0.96f, 1.00f), "|  👥 Clients: %d", (int)clients.size());
+
     ImGui::Separator();
     ImGui::Spacing();
 
-    // --- 2. GROUP 1: AUDIO CONTROLS (Clean Card Container) ---
-    ImGui::TextColored(ImVec4(0.39f, 0.45f, 0.55f, 1.00f), "AUDIO CONTROLS");
-    ImGui::BeginChild("AudioCard", ImVec2(0, 230), true, ImGuiWindowFlags_None);
+    // --- 2. GROUP 1: AUDIO CONTROLS & DUAL VU METERS ---
+    ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "AUDIO CONTROLS & DUAL VU METERS");
+    ImGui::BeginChild("AudioCard", ImVec2(0, 245), true, ImGuiWindowFlags_None);
 
-    // Row 0: Audio Level VU Meter & Square Server Toggle Button (⏹ / ▶)
-    bool isServerActive = NetworkServer::Instance().IsActive();
+    // Dual Stereo VU LED Level Meters (Left & Right)
     float peakL = audioBackend ? audioBackend->GetPeakLevelL() : 0.0f;
     float peakR = audioBackend ? audioBackend->GetPeakLevelR() : 0.0f;
-    float avgPeak = (peakL + peakR) * 0.5f;
+    if (!isServerActive) { peakL = 0.0f; peakR = 0.0f; }
 
-    ImGui::Text("Audio Level:");
-    ImGui::SameLine();
+    float barW = ImGui::GetContentRegionAvail().x - 70.0f;
 
-    float barWidth = ImGui::GetContentRegionAvail().x - 45.0f;
-    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.06f, 0.73f, 0.49f, 1.00f)); // Emerald #10b981
-    ImGui::ProgressBar(isServerActive ? avgPeak : 0.0f, ImVec2(barWidth, 24.0f), "");
+    // Left Channel VU Meter Bar
+    ImGui::Text("L");
+    ImGui::SameLine(25.0f);
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.02f, 0.71f, 0.83f, 1.00f)); // Cyan #06b6d4
+    ImGui::ProgressBar((std::min)(1.0f, peakL * 2.2f), ImVec2(barW, 14.0f), "");
     ImGui::PopStyleColor();
-
     ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "%d%%", (int)(peakL * 100.0f));
+
+    // Right Channel VU Meter Bar
+    ImGui::Text("R");
+    ImGui::SameLine(25.0f);
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.06f, 0.73f, 0.49f, 1.00f)); // Emerald #10b981
+    ImGui::ProgressBar((std::min)(1.0f, peakR * 2.2f), ImVec2(barW, 14.0f), "");
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "%d%%", (int)(peakR * 100.0f));
+
+    ImGui::Spacing();
+
+    // Server Active Toggle Button
     if (isServerActive) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f)); // Red #ef4444
-        if (ImGui::Button("⏹", ImVec2(30.0f, 24.0f))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
+        if (ImGui::Button("⏹ STOP SERVER", ImVec2(120.0f, 24.0f))) {
             NetworkServer::Instance().SetActive(false);
         }
         ImGui::PopStyleColor();
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.06f, 0.73f, 0.49f, 1.00f)); // Green #10b981
-        if (ImGui::Button("▶", ImVec2(30.0f, 24.0f))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.06f, 0.73f, 0.49f, 1.00f));
+        if (ImGui::Button("▶ START SERVER", ImVec2(120.0f, 24.0f))) {
             NetworkServer::Instance().SetActive(true);
         }
         ImGui::PopStyleColor();
     }
 
-    // Row 1: Master Volume
+    // Row 1: Master Volume Slider
     ImGui::Text("Master:");
     ImGui::SameLine(90.0f);
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 140.0f);
@@ -138,13 +172,13 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SameLine();
     if (cfg.isMuted) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
-        if (ImGui::Button("Unmute##M", ImVec2(65.0f, 0))) { cfg.isMuted = false; cfgChanged = true; }
+        if (ImGui::Button("🔇 Muted##M", ImVec2(75.0f, 0))) { cfg.isMuted = false; cfgChanged = true; }
         ImGui::PopStyleColor();
     } else {
-        if (ImGui::Button("Mute##M", ImVec2(65.0f, 0))) { cfg.isMuted = true; cfgChanged = true; }
+        if (ImGui::Button("🔊 Mute##M", ImVec2(75.0f, 0))) { cfg.isMuted = true; cfgChanged = true; }
     }
 
-    // Row 2: Gain Left
+    // Row 2: Gain Left Slider
     ImGui::Text("Gain L:");
     ImGui::SameLine(90.0f);
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 140.0f);
@@ -154,13 +188,13 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SameLine();
     if (cfg.isMutedL) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
-        if (ImGui::Button("Unmute L", ImVec2(65.0f, 0))) { cfg.isMutedL = false; cfgChanged = true; }
+        if (ImGui::Button("🔇 Mute L", ImVec2(75.0f, 0))) { cfg.isMutedL = false; cfgChanged = true; }
         ImGui::PopStyleColor();
     } else {
-        if (ImGui::Button("Mute L", ImVec2(65.0f, 0))) { cfg.isMutedL = true; cfgChanged = true; }
+        if (ImGui::Button("🔊 Mute L", ImVec2(75.0f, 0))) { cfg.isMutedL = true; cfgChanged = true; }
     }
 
-    // Row 3: Gain Right
+    // Row 3: Gain Right Slider
     ImGui::Text("Gain R:");
     ImGui::SameLine(90.0f);
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 140.0f);
@@ -170,10 +204,10 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     ImGui::SameLine();
     if (cfg.isMutedR) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.94f, 0.27f, 0.27f, 1.00f));
-        if (ImGui::Button("Unmute R", ImVec2(65.0f, 0))) { cfg.isMutedR = false; cfgChanged = true; }
+        if (ImGui::Button("🔇 Mute R", ImVec2(75.0f, 0))) { cfg.isMutedR = false; cfgChanged = true; }
         ImGui::PopStyleColor();
     } else {
-        if (ImGui::Button("Mute R", ImVec2(65.0f, 0))) { cfg.isMutedR = true; cfgChanged = true; }
+        if (ImGui::Button("🔊 Mute R", ImVec2(75.0f, 0))) { cfg.isMutedR = true; cfgChanged = true; }
     }
 
     // Row 4: Audio Source Device Dropdown
@@ -235,10 +269,10 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::EndChild();
 
-    // --- 3. GROUP 2: NETWORK & CONNECTED CLIENTS (Clean Card Container) ---
+    // --- 3. GROUP 2: NETWORK & CONNECTED CLIENTS ---
     ImGui::Spacing();
-    ImGui::TextColored(ImVec4(0.39f, 0.45f, 0.55f, 1.00f), "NETWORK & CONNECTED CLIENTS");
-    ImGui::BeginChild("NetCard", ImVec2(0, 115), true, ImGuiWindowFlags_None);
+    ImGui::TextColored(ImVec4(0.48f, 0.56f, 0.68f, 1.00f), "NETWORK & CONNECTED CLIENTS");
+    ImGui::BeginChild("NetCard", ImVec2(0, 105), true, ImGuiWindowFlags_None);
 
     ImGui::Text("Server IP:");
     ImGui::SameLine();
@@ -254,7 +288,6 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
     }
     ImGui::NewLine();
 
-    auto clients = NetworkServer::Instance().GetClients();
     if (clients.empty()) {
         ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.00f), "No active clients connected. Open DeskSound app on phone.");
     } else {
