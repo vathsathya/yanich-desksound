@@ -310,12 +310,14 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::EndChild();
 
-    // --- 4. Bottom System Checkboxes ---
+    // --- 4. Bottom System Checkboxes (Clean Single Row) ---
     ImGui::Spacing();
-    if (ImGui::Checkbox("Minimize to System Tray on close", &cfg.minimizeToTray)) {
+    ImGui::SetCursorPosX(14.0f);
+    if (ImGui::Checkbox("Minimize to Tray on close", &cfg.minimizeToTray)) {
         cfgChanged = true;
     }
-    if (ImGui::Checkbox("Start automatically on system login", &cfg.runOnStartup)) {
+    ImGui::SameLine(235.0f);
+    if (ImGui::Checkbox("Start on system login", &cfg.runOnStartup)) {
         ConfigManager::Instance().SetRunOnStartup(cfg.runOnStartup);
         cfgChanged = true;
     }
