@@ -46,7 +46,7 @@ void UDPDiscoveryServer() {
         ssize_t len = recvfrom(sock, buffer, sizeof(buffer) - 1, 0, (sockaddr*)&clientAddr, &addrLen);
         if (len > 0) {
             buffer[len] = '\0';
-            if (strstr(buffer, "DESKSOUND_DISCOVERY")) {
+            if (strstr(buffer, "DESKSOUND_DISCOVER")) {
                 std::string response = "DESKSOUND_SERVER_PORT:5000";
                 sendto(sock, response.c_str(), response.length(), 0, (sockaddr*)&clientAddr, addrLen);
             }
