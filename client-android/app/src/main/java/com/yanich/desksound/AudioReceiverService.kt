@@ -171,13 +171,29 @@ class AudioReceiverService : Service() {
         notifyStatus(State.DISCONNECTED, null)
     }
 
+    private var audioFocusRequest: android.media.AudioFocusRequest? = null
+
     private fun requestAudioFocus() {
         try {
-            audioManager?.requestAudioFocus(
-                audioFocusChangeListener,
-                AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN
-            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+                audioFocusRequest = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                    .build()
+                audioManager?.requestAudioFocus(audioFocusRequest!!)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.requestAudioFocus(
+                    audioFocusChangeListener,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN
+                )
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error requesting Audio Focus", e)
         }
@@ -185,7 +201,12 @@ class AudioReceiverService : Service() {
 
     private fun abandonAudioFocus() {
         try {
-            audioManager?.abandonAudioFocus(audioFocusChangeListener)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(audioFocusChangeListener)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error abandoning Audio Focus", e)
         }
@@ -336,7 +357,6 @@ class AudioReceiverService : Service() {
                     notifyStatus(State.STREAMING, "Connected to $connectedIp:$port")
                     updateNotification("Streaming desktop audio from $connectedIp:$port")
 
-                    initAudioTrack()
                     try {
                         readAudioLoop(connectedSock!!.getInputStream())
                     } catch (e: Exception) {
@@ -363,7 +383,7 @@ class AudioReceiverService : Service() {
         }
     }
 
-    private fun initAudioTrack(sampleRate: Int = 48000, channels: Int = 2, isFloat: Boolean = true) {
+    private fun initAudioTrack(sampleRate: Int = 48000, channels: Int = 2, isFloat: Boolean = false) {
         val channelConfig = if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
         val audioFormat = if (isFloat) AudioFormat.ENCODING_PCM_FLOAT else AudioFormat.ENCODING_PCM_16BIT
 
@@ -412,10 +432,15 @@ class AudioReceiverService : Service() {
 
         val headerBuf = ByteArray(32)
         var headerBytes = 0
-        while (headerBytes < 32 && isStreaming && isActive) {
-            val r = inputStream.read(headerBuf, headerBytes, 32 - headerBytes)
-            if (r == -1) break
-            headerBytes += r
+        try {
+            while (headerBytes < 32 && isStreaming && isActive) {
+                val r = inputStream.read(headerBuf, headerBytes, 32 - headerBytes)
+                if (r == -1) break
+                headerBytes += r
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Format header read ended: ${e.message}")
+            return@withContext
         }
 
         if (headerBytes == 32) {
@@ -463,137 +488,138 @@ class AudioReceiverService : Service() {
         var dcPrevOutR = 0.0f
 
         while (isStreaming && isActive) {
-            // Check time gap between packet reads for video switches / pauses
-            val nowRead = System.currentTimeMillis()
-            if (nowRead - lastReadPacketTime > 150) {
-                // Video switch gap detected! Flush stale AudioTrack buffer
-                try {
-                    audioTrack?.flush()
-                } catch (_: Exception) {}
-                isFadingIn = true
-                fadeCounter = 0
-            }
-            lastReadPacketTime = nowRead
-
-            // 1. Read 8-byte big-endian header: [4 bytes modeTag] [4 bytes audioLength]
-            var hRead = 0
-            while (hRead < 8 && isStreaming && isActive) {
-                val r = inputStream.read(headerBuffer, hRead, 8 - hRead)
-                if (r == -1) return@withContext
-                hRead += r
-            }
-
-            headerBb.rewind()
-            val modeTag = headerBb.int
-            val audioLength = headerBb.int
-
-            if (audioLength <= 0 || audioLength > 65536) {
-                Log.w(TAG, "Invalid audio packet length received: $audioLength")
-                return@withContext
-            }
-
-            if (modeTag != currentServerTag) {
-                currentServerTag = modeTag
-                val channelDisplay = when (modeTag) {
-                    1 -> "Left Channel (L)"
-                    2 -> "Right Channel (R)"
-                    else -> "Stereo (L+R)"
+            try {
+                // Check time gap between packet reads for video switches / pauses
+                val nowRead = System.currentTimeMillis()
+                if (nowRead - lastReadPacketTime > 150) {
+                    // Video switch gap detected! Flush stale AudioTrack buffer
+                    try {
+                        audioTrack?.flush()
+                    } catch (_: Exception) {}
+                    isFadingIn = true
+                    fadeCounter = 0
                 }
-                currentChannelModeText = channelDisplay
-                serviceScope.launch(Dispatchers.Main) {
-                    onChannelModeListener?.invoke(channelDisplay)
-                }
-            }
+                lastReadPacketTime = nowRead
 
-            // 2. Read exactly audioLength bytes of 16-bit PCM Audio payload
-            if (pcmBuffer.size < audioLength) {
-                pcmBuffer = ByteArray(audioLength)
-            }
-
-            var pcmRead = 0
-            while (pcmRead < audioLength && isStreaming && isActive) {
-                val r = inputStream.read(pcmBuffer, pcmRead, audioLength - pcmRead)
-                if (r == -1) return@withContext
-                pcmRead += r
-            }
-
-            if (pcmRead > 0) {
-                val totalShorts = pcmRead / 2
-                val frameCount = totalShorts / 2
-                if (shortBuffer.size < totalShorts) {
-                    shortBuffer = ShortArray(totalShorts)
-                    floatBuffer = FloatArray(totalShorts)
+                // 1. Read 8-byte big-endian header: [4 bytes modeTag] [4 bytes audioLength]
+                var hRead = 0
+                while (hRead < 8 && isStreaming && isActive) {
+                    val r = inputStream.read(headerBuffer, hRead, 8 - hRead)
+                    if (r == -1) return@withContext
+                    hRead += r
                 }
 
-                val pcmBb = ByteBuffer.wrap(pcmBuffer, 0, pcmRead).order(ByteOrder.LITTLE_ENDIAN)
-                val curOverride = overrideMode
-                for (i in 0 until frameCount) {
-                    var sampleL = pcmBb.short / 32768.0f
-                    var sampleR = pcmBb.short / 32768.0f
+                headerBb.rewind()
+                val modeTag = headerBb.int
+                val audioLength = headerBb.int
 
-                    when (curOverride) {
-                        OverrideMode.FORCE_LEFT -> { sampleR = sampleL }
-                        OverrideMode.FORCE_RIGHT -> { sampleL = sampleR }
-                        OverrideMode.AUTO -> { /* follow server tag */ }
+                if (audioLength <= 0 || audioLength > 65536) {
+                    Log.w(TAG, "Invalid audio packet length received: $audioLength")
+                    return@withContext
+                }
+
+                if (modeTag != currentServerTag) {
+                    currentServerTag = modeTag
+                    val channelDisplay = when (modeTag) {
+                        1 -> "Left Channel (L)"
+                        2 -> "Right Channel (R)"
+                        else -> "Stereo (L+R)"
+                    }
+                    currentChannelModeText = channelDisplay
+                    serviceScope.launch(Dispatchers.Main) {
+                        onChannelModeListener?.invoke(channelDisplay)
+                    }
+                }
+
+                // 2. Read exactly audioLength bytes of 16-bit PCM Audio payload
+                if (pcmBuffer.size < audioLength) {
+                    pcmBuffer = ByteArray(audioLength)
+                }
+
+                var pcmRead = 0
+                while (pcmRead < audioLength && isStreaming && isActive) {
+                    val r = inputStream.read(pcmBuffer, pcmRead, audioLength - pcmRead)
+                    if (r == -1) return@withContext
+                    pcmRead += r
+                }
+
+                if (pcmRead > 0) {
+                    val totalShorts = pcmRead / 2
+                    val frameCount = totalShorts / 2
+                    if (shortBuffer.size < totalShorts) {
+                        shortBuffer = ShortArray(totalShorts)
+                        floatBuffer = FloatArray(totalShorts)
                     }
 
-                    // 1. DC-Blocker Filter (Eliminates DC offset pops/clicks)
-                    val outL = sampleL - dcPrevInL + 0.995f * dcPrevOutL
-                    dcPrevInL = sampleL
-                    dcPrevOutL = outL
-                    sampleL = outL
+                    val pcmBb = ByteBuffer.wrap(pcmBuffer, 0, pcmRead).order(ByteOrder.LITTLE_ENDIAN)
+                    val curOverride = overrideMode
+                    for (i in 0 until frameCount) {
+                        var sampleL = pcmBb.short / 32768.0f
+                        var sampleR = pcmBb.short / 32768.0f
 
-                    val outR = sampleR - dcPrevInR + 0.995f * dcPrevOutR
-                    dcPrevInR = sampleR
-                    dcPrevOutR = outR
-                    sampleR = outR
+                        when (curOverride) {
+                            OverrideMode.FORCE_LEFT -> { sampleR = sampleL }
+                            OverrideMode.FORCE_RIGHT -> { sampleL = sampleR }
+                            OverrideMode.AUTO -> { /* follow server tag */ }
+                        }
 
-                    // 2. Noise Gate Guard (Completely silences background hiss/hum when silent)
-                    if (Math.abs(sampleL) < 0.0003f) sampleL = 0.0f
-                    if (Math.abs(sampleR) < 0.0003f) sampleR = 0.0f
+                        // 1. DC-Blocker Filter (Eliminates DC offset pops/clicks)
+                        val outL = sampleL - dcPrevInL + 0.995f * dcPrevOutL
+                        dcPrevInL = sampleL
+                        dcPrevOutL = outL
+                        sampleL = outL
 
-                    // 3. Smooth Anti-Pop Fade-In on Stream Resume / Video Switch
-                    if (isFadingIn) {
-                        val fadeFactor = fadeCounter.toFloat() / FADE_FRAMES
-                        sampleL *= fadeFactor
-                        sampleR *= fadeFactor
-                        fadeCounter++
-                        if (fadeCounter >= FADE_FRAMES) {
-                            isFadingIn = false
+                        val outR = sampleR - dcPrevInR + 0.995f * dcPrevOutR
+                        dcPrevInR = sampleR
+                        dcPrevOutR = outR
+                        sampleR = outR
+
+                        // 2. Smooth Anti-Pop Fade-In on Stream Resume / Video Switch
+                        if (isFadingIn) {
+                            val fadeFactor = fadeCounter.toFloat() / FADE_FRAMES
+                            sampleL *= fadeFactor
+                            sampleR *= fadeFactor
+                            fadeCounter++
+                            if (fadeCounter >= FADE_FRAMES) {
+                                isFadingIn = false
+                            }
+                        }
+
+                        // 3. Soft-Knee Saturation Limiter Guard
+                        sampleL = (Math.tanh(sampleL.toDouble()).toFloat()) * 0.85f
+                        sampleR = (Math.tanh(sampleR.toDouble()).toFloat()) * 0.85f
+
+                        // 4. Convert back to 16-bit Signed Integer (-32768..32767) for AudioTrack
+                        val shortL = (sampleL.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
+                        val shortR = (sampleR.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
+
+                        shortBuffer[i * 2 + 0] = shortL
+                        shortBuffer[i * 2 + 1] = shortR
+                        floatBuffer[i * 2 + 0] = sampleL
+                        floatBuffer[i * 2 + 1] = sampleR
+                    }
+
+                    // Play back 16-bit Integer PCM frame block (100% compatible with all Android DACs)
+                    audioTrack?.write(shortBuffer, 0, totalShorts, AudioTrack.WRITE_BLOCKING)
+
+                    // Measure live audio level for VU meter
+                    val now = System.currentTimeMillis()
+                    if (now - lastLevelReportTime > 40) {
+                        lastLevelReportTime = now
+                        var sumSquare = 0.0f
+                        for (i in 0 until totalShorts) {
+                            sumSquare += floatBuffer[i] * floatBuffer[i]
+                        }
+                        val rms = Math.sqrt((sumSquare / totalShorts).toDouble()).toFloat()
+                        val normLevel = (rms * 3.0f).coerceIn(0.0f, 1.0f)
+                        serviceScope.launch(Dispatchers.Main) {
+                            onAudioLevelListener?.invoke(normLevel)
                         }
                     }
-
-                    // 4. Soft-Knee Saturation Limiter Guard
-                    sampleL = (Math.tanh(sampleL.toDouble()).toFloat()) * 0.85f
-                    sampleR = (Math.tanh(sampleR.toDouble()).toFloat()) * 0.85f
-
-                    // 5. Convert back to 16-bit Signed Integer (-32768..32767) for AudioTrack
-                    val shortL = (sampleL.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
-                    val shortR = (sampleR.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
-
-                    shortBuffer[i * 2 + 0] = shortL
-                    shortBuffer[i * 2 + 1] = shortR
-                    floatBuffer[i * 2 + 0] = sampleL
-                    floatBuffer[i * 2 + 1] = sampleR
                 }
-
-                // Play back 16-bit Integer PCM frame block (100% compatible with all Android DACs)
-                audioTrack?.write(shortBuffer, 0, totalShorts, AudioTrack.WRITE_BLOCKING)
-
-                // Measure live audio level for VU meter
-                val now = System.currentTimeMillis()
-                if (now - lastLevelReportTime > 40) {
-                    lastLevelReportTime = now
-                    var sumSquare = 0.0f
-                    for (i in 0 until totalShorts) {
-                        sumSquare += floatBuffer[i] * floatBuffer[i]
-                    }
-                    val rms = Math.sqrt((sumSquare / totalShorts).toDouble()).toFloat()
-                    val normLevel = (rms * 3.0f).coerceIn(0.0f, 1.0f)
-                    serviceScope.launch(Dispatchers.Main) {
-                        onAudioLevelListener?.invoke(normLevel)
-                    }
-                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Socket stream read error or disconnect: ${e.message}")
+                return@withContext
             }
         }
     }

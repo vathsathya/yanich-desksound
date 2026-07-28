@@ -3,6 +3,7 @@
 #include "../include/config_manager.h"
 #include "../include/logger.h"
 #include "../include/gui_app.h"
+#include "../include/version.h"
 #include "../thirdparty/imgui/imgui.h"
 
 #include <iostream>
@@ -115,7 +116,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 0; // Exit secondary duplicate process
     }
 
-    LOG_INFO("[Server] Starting Yanich DeskSound Windows Server v1.2.7 (Unified ImGui)");
+    LOG_INFO(std::string("[Server] Starting Yanich DeskSound Windows Server ") + APP_VERSION_TAG + " (Unified ImGui)");
 
     // Initialize Network Audio Streaming Server
     NetworkServer::Instance().Start(5000, 5001);

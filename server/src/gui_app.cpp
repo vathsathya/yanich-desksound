@@ -9,6 +9,7 @@
 #include "../include/logger.h"
 #include "../include/DesignTokens.h"
 #include "../include/custom_widgets.h"
+#include "../include/version.h"
 #include "../thirdparty/imgui/imgui.h"
 
 #include <iostream>
@@ -98,7 +99,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     ImGui::SameLine();
     ImGui::SetCursorPosY(18.0f);
-    VersionBadge("v1.2.7");
+    VersionBadge(APP_VERSION_TAG);
 
     // Subtitle & Status Badge
     ImGui::SetCursorPos(ImVec2(OuterMargin, 44.0f));
@@ -265,27 +266,27 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
         for (size_t i = 0; i < clients.size(); ++i) {
             ImGui::PushID((int)i);
             ImGui::PushStyleColor(ImGuiCol_ChildBg, CardElevated);
-            ImGui::BeginChild(("ClientCard_" + std::to_string(i)).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 38.0f), true, ImGuiWindowFlags_NoScrollbar);
+            ImGui::BeginChild(("ClientCard_" + std::to_string(i)).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 42.0f), true, ImGuiWindowFlags_NoScrollbar);
             
-            ImGui::SetCursorPos(ImVec2(10.0f, 9.0f));
+            ImGui::SetCursorPos(ImVec2(10.0f, 11.0f));
             ImGui::TextColored(AccentPrimary, "[Phone]");
             ImGui::SameLine();
             ImGui::TextColored(TextPrimary, "Client #%d:", clients[i].id);
             ImGui::SameLine();
             ImGui::TextColored(TextSecondary, "%s", clients[i].ip.c_str());
 
-            ImGui::SameLine(ImGui::GetWindowWidth() - 175.0f);
-            ImGui::SetCursorPosY(7.0f);
-            ImGui::SetNextItemWidth(95.0f);
+            ImGui::SameLine(ImGui::GetWindowWidth() - 150.0f);
+            ImGui::SetCursorPosY(9.0f);
+            ImGui::SetNextItemWidth(80.0f);
             const char* modeNames[] = { "Stereo", "Left Ch", "Right Ch" };
             int currentMode = (int)clients[i].channelMode;
             if (ImGui::Combo("##Mode", &currentMode, modeNames, 3)) {
                 NetworkServer::Instance().SetClientChannelMode((int)i, (ClientChannelMode)currentMode);
             }
 
-            ImGui::SameLine(ImGui::GetWindowWidth() - 70.0f);
-            ImGui::SetCursorPosY(8.0f);
-            if (DangerButton("Kick", ImVec2(58.0f, 22.0f))) {
+            ImGui::SameLine(ImGui::GetWindowWidth() - 60.0f);
+            ImGui::SetCursorPosY(9.0f);
+            if (DangerButton("Kick", ImVec2(50.0f, 24.0f))) {
                 NetworkServer::Instance().KickClient((int)i);
             }
             ImGui::EndChild();
@@ -444,6 +445,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // Modal Event Log History Dialog
     if (m_showLogsModal) {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         ImGui::OpenPopup("Event Log History");
     }
 
@@ -474,6 +476,7 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // Modal Settings Dialog
     if (m_showSettingsModal) {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         ImGui::OpenPopup("Server Settings");
     }
 
@@ -601,12 +604,13 @@ void GuiApp::RenderUI(AudioBackend* audioBackend) {
 
     // Modal About Dialog
     if (m_showAboutModal) {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         ImGui::OpenPopup("About Yanich DeskSound");
     }
 
     if (ImGui::BeginPopupModal("About Yanich DeskSound", &m_showAboutModal, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextColored(AccentPrimary, " ~|~|~  Yanich DeskSound Server");
-        ImGui::TextColored(TextSecondary, "Version 1.2.7 (Commercial Release 2026)");
+        ImGui::TextColored(TextSecondary, "Version " APP_VERSION_STRING " (Commercial Release 2026)");
         ImGui::Separator();
         ImGui::Spacing();
 
