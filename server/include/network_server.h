@@ -68,8 +68,10 @@ private:
 
 #ifdef _WIN32
     uintptr_t m_listenSocket;
+    uintptr_t m_udpSocket{ (uintptr_t)-1 };
 #else
     int m_listenSocket;
+    int m_udpSocket{ -1 };
 #endif
 };
 

@@ -119,6 +119,11 @@ void NetworkServer::Stop() {
         m_listenSocket = INVALID_SOCKET;
     }
 
+    if (m_udpSocket != INVALID_SOCKET) {
+        closesocket(m_udpSocket);
+        m_udpSocket = INVALID_SOCKET;
+    }
+
     {
         std::lock_guard<std::mutex> lock(m_clientMutex);
         for (const auto& c : m_clients) {
@@ -202,35 +207,38 @@ void NetworkServer::AcceptThread() {
 }
 
 void NetworkServer::UdpDiscoveryThread() {
-    auto udpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (udpSocket == INVALID_SOCKET) return;
+    m_udpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (m_udpSocket == INVALID_SOCKET) return;
 
     int optval = 1;
-    setsockopt(udpSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof(optval));
+    setsockopt(m_udpSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof(optval));
 
     sockaddr_in discoveryAddr{};
     discoveryAddr.sin_family = AF_INET;
     discoveryAddr.sin_addr.s_addr = INADDR_ANY;
     discoveryAddr.sin_port = htons(m_discoveryPort);
 
-    if (bind(udpSocket, (sockaddr*)&discoveryAddr, sizeof(discoveryAddr)) == 0) {
+    if (bind(m_udpSocket, (sockaddr*)&discoveryAddr, sizeof(discoveryAddr)) == 0) {
         char recvBuf[256];
         sockaddr_in clientAddr{};
         socklen_t clientAddrLen = sizeof(clientAddr);
 
         while (m_running.load()) {
-            int bytesRead = (int)recvfrom(udpSocket, recvBuf, sizeof(recvBuf) - 1, 0, (sockaddr*)&clientAddr, &clientAddrLen);
+            int bytesRead = (int)recvfrom(m_udpSocket, recvBuf, sizeof(recvBuf) - 1, 0, (sockaddr*)&clientAddr, &clientAddrLen);
             if (bytesRead > 0) {
                 if (!m_active.load() || !IsPrivateIP(clientAddr)) continue;
                 recvBuf[bytesRead] = '\0';
                 if (strstr(recvBuf, "DESKSOUND_DISCOVER") != NULL) {
                     const char* replyMsg = "DESKSOUND_SERVER|5000";
-                    sendto(udpSocket, replyMsg, (int)strlen(replyMsg), 0, (sockaddr*)&clientAddr, clientAddrLen);
+                    sendto(m_udpSocket, replyMsg, (int)strlen(replyMsg), 0, (sockaddr*)&clientAddr, clientAddrLen);
                 }
             }
         }
     }
-    closesocket(udpSocket);
+    if (m_udpSocket != INVALID_SOCKET) {
+        closesocket(m_udpSocket);
+        m_udpSocket = INVALID_SOCKET;
+    }
 }
 
 #ifdef _WIN32
@@ -261,7 +269,9 @@ void NetworkServer::AdbReverseThread() {
             system("adb reverse tcp:5000 tcp:5000 >/dev/null 2>&1");
 #endif
         }
-        std::this_thread::sleep_for(std::chrono::seconds(8));
+        for (int i = 0; i < 80 && m_running.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 }
 

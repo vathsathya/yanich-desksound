@@ -203,6 +203,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ::DestroyWindow(hwnd);
     ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
+    if (hSingleMutex) {
+        ::ReleaseMutex(hSingleMutex);
+        ::CloseHandle(hSingleMutex);
+        hSingleMutex = NULL;
+    }
+
+#ifdef _WIN32
+    ::ExitProcess(0);
+#endif
     return 0;
 }
 
