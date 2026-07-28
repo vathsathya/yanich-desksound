@@ -13,6 +13,7 @@ mkdir -p bin
 g++ -O3 -std=c++17 \
   server/src/main.cpp \
   server/src/gui_app.cpp \
+  server/src/custom_widgets.cpp \
   server/src/config_manager.cpp \
   server/src/logger.cpp \
   server/src/network_server.cpp \
