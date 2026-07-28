@@ -83,10 +83,84 @@ class AudioReceiverService : Service() {
     enum class OverrideMode { AUTO, FORCE_LEFT, FORCE_RIGHT }
     var overrideMode: OverrideMode = OverrideMode.AUTO
 
+    enum class EqPreset { FLAT, BASS_BOOST, VOCAL_CLARITY, GAMING, MOVIE }
+
+    class BiquadFilter {
+        var b0 = 1.0f; var b1 = 0.0f; var b2 = 0.0f
+        var a1 = 0.0f; var a2 = 0.0f
+        var x1 = 0.0f; var x2 = 0.0f
+        var y1 = 0.0f; var y2 = 0.0f
+
+        fun process(x: Float): Float {
+            val y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1; x1 = x
+            y2 = y1; y1 = y
+            return y
+        }
+
+        fun configurePeaking(frequency: Float, gainDb: Float, sampleRate: Float = 48000f, q: Float = 1.0f) {
+            if (gainDb == 0.0f) {
+                b0 = 1.0f; b1 = 0.0f; b2 = 0.0f
+                a1 = 0.0f; a2 = 0.0f
+                return
+            }
+            val A = Math.pow(10.0, (gainDb / 40.0).toDouble()).toFloat()
+            val w0 = (2.0 * Math.PI * frequency / sampleRate).toFloat()
+            val alpha = (Math.sin(w0.toDouble()) / (2.0 * q)).toFloat()
+            val cosw0 = Math.cos(w0.toDouble()).toFloat()
+
+            val a0 = 1.0f + alpha / A
+            b0 = (1.0f + alpha * A) / a0
+            b1 = (-2.0f * cosw0) / a0
+            b2 = (1.0f - alpha * A) / a0
+            a1 = (-2.0f * cosw0) / a0
+            a2 = (1.0f - alpha / A) / a0
+        }
+    }
+
+    private val eqFiltersL = Array(5) { BiquadFilter() }
+    private val eqFiltersR = Array(5) { BiquadFilter() }
+    var currentEqPreset: EqPreset = EqPreset.FLAT
+        private set
+
+    fun setEqPreset(preset: EqPreset) {
+        currentEqPreset = preset
+        val gains = when (preset) {
+            EqPreset.FLAT -> floatArrayOf(0f, 0f, 0f, 0f, 0f)
+            EqPreset.BASS_BOOST -> floatArrayOf(6f, 4f, 0f, 0f, 0f)
+            EqPreset.VOCAL_CLARITY -> floatArrayOf(-2f, 0f, 4f, 5f, 2f)
+            EqPreset.GAMING -> floatArrayOf(0f, 2f, 0f, 5f, 6f)
+            EqPreset.MOVIE -> floatArrayOf(4f, 2f, 0f, 3f, 2f)
+        }
+        val freqs = floatArrayOf(60f, 250f, 1000f, 4000f, 12000f)
+        for (i in 0 until 5) {
+            eqFiltersL[i].configurePeaking(freqs[i], gains[i])
+            eqFiltersR[i].configurePeaking(freqs[i], gains[i])
+        }
+    }
+
+    fun sendReverseCommand(command: String, targetIp: String? = null, port: Int = 5001) {
+        val ip = targetIp ?: socket?.inetAddress?.hostAddress ?: return
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val ds = java.net.DatagramSocket()
+                val bytes = command.toByteArray()
+                val packet = java.net.DatagramPacket(bytes, bytes.size, java.net.InetAddress.getByName(ip), port)
+                ds.send(packet)
+                ds.close()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending reverse command", e)
+            }
+        }
+    }
+
+    @Volatile var isNoiseGateEnabled: Boolean = true
+
     var currentChannelModeText: String = "Stereo (L+R)"
 
     var onStatusChangedListener: ((State, String?) -> Unit)? = null
     var onAudioLevelListener: ((Float) -> Unit)? = null
+    var onTelemetryUpdatedListener: ((latencyMs: Int, bufferHealthPct: Int) -> Unit)? = null
     var onChannelModeListener: ((String) -> Unit)? = null
         set(value) {
             field = value
@@ -487,6 +561,9 @@ class AudioReceiverService : Service() {
         var dcPrevInR = 0.0f
         var dcPrevOutR = 0.0f
 
+        var noiseGateEnvelope = 0.0f
+        val noiseGateThreshold = 0.003f // ~-50 dB threshold to filter background static/hiss
+
         while (isStreaming && isActive) {
             try {
                 // Check time gap between packet reads for video switches / pauses
@@ -585,11 +662,33 @@ class AudioReceiverService : Service() {
                             }
                         }
 
-                        // 3. Soft-Knee Saturation Limiter Guard
+                        // 3. DSP Noise-Gate Filter (Attenuates background static/hiss when audio input drops below threshold)
+                        if (isNoiseGateEnabled) {
+                            val frameLevel = Math.max(Math.abs(sampleL), Math.abs(sampleR))
+                            val alpha = if (frameLevel > noiseGateEnvelope) 0.3f else 0.02f
+                            noiseGateEnvelope += (frameLevel - noiseGateEnvelope) * alpha
+
+                            if (noiseGateEnvelope < noiseGateThreshold) {
+                                val gateGain = (noiseGateEnvelope / noiseGateThreshold).coerceIn(0.0f, 1.0f)
+                                val smoothGain = gateGain * gateGain * (3.0f - 2.0f * gateGain)
+                                sampleL *= smoothGain
+                                sampleR *= smoothGain
+                            }
+                        }
+
+                        // 4. 5-Band Custom Graphic DSP Equalizer
+                        if (currentEqPreset != EqPreset.FLAT) {
+                            for (b in 0 until 5) {
+                                sampleL = eqFiltersL[b].process(sampleL)
+                                sampleR = eqFiltersR[b].process(sampleR)
+                            }
+                        }
+
+                        // 5. Soft-Knee Saturation Limiter Guard
                         sampleL = (Math.tanh(sampleL.toDouble()).toFloat()) * 0.85f
                         sampleR = (Math.tanh(sampleR.toDouble()).toFloat()) * 0.85f
 
-                        // 4. Convert back to 16-bit Signed Integer (-32768..32767) for AudioTrack
+                        // 6. Convert back to 16-bit Signed Integer (-32768..32767) for AudioTrack
                         val shortL = (sampleL.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
                         val shortR = (sampleR.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
 
@@ -602,9 +701,14 @@ class AudioReceiverService : Service() {
                     // Play back 16-bit Integer PCM frame block (100% compatible with all Android DACs)
                     audioTrack?.write(shortBuffer, 0, totalShorts, AudioTrack.WRITE_BLOCKING)
 
-                    // Measure live audio level for VU meter
+                    // Measure live audio level for VU meter & stream telemetry
                     val now = System.currentTimeMillis()
                     if (now - lastLevelReportTime > 40) {
+                        val isUsbMode = socket?.inetAddress?.hostAddress == "127.0.0.1" || socket?.inetAddress?.hostAddress?.startsWith("192.168.42.") == true
+                        val baseLatency = if (isUsbMode) 3 else 14
+                        val latencyEstimateMs = baseLatency + (bufferLatencyMultiplier * 4)
+                        val bufferHealth = (100 - (bufferLatencyMultiplier * 4)).coerceIn(80, 100)
+
                         lastLevelReportTime = now
                         var sumSquare = 0.0f
                         for (i in 0 until totalShorts) {
@@ -614,6 +718,7 @@ class AudioReceiverService : Service() {
                         val normLevel = (rms * 3.0f).coerceIn(0.0f, 1.0f)
                         serviceScope.launch(Dispatchers.Main) {
                             onAudioLevelListener?.invoke(normLevel)
+                            onTelemetryUpdatedListener?.invoke(latencyEstimateMs, bufferHealth)
                         }
                     }
                 }

@@ -677,11 +677,292 @@
                                 android:textStyle="bold" />
 
                             <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchNoiseGate"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:checked="true"
                                 app:thumbTint="@color/primary"
                                 app:trackTint="@color/card_elevated" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Stream Telemetry & Latency HUD Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="20dp"
+                    app:cardBackgroundColor="@color/surface"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="@color/border_muted">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Stream Performance Telemetry"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="10dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:background="@drawable/bg_card_unselected"
+                                android:padding="10dp"
+                                android:layout_marginEnd="6dp">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="LATENCY"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/tvTelemetryLatency"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="5 ms (Ultra-Low)"
+                                    android:textColor="@color/accent_cyan"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:layout_marginTop="2dp" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:background="@drawable/bg_card_unselected"
+                                android:padding="10dp"
+                                android:layout_marginStart="6dp">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="BUFFER HEALTH"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/tvTelemetryBuffer"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="96% (Optimal)"
+                                    android:textColor="@color/status_connected"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:layout_marginTop="2dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 5-Band DSP Sound Presets Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="20dp"
+                    app:cardBackgroundColor="@color/surface"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="@color/border_muted">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="5-Band DSP Equalizer Presets"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="12dp" />
+
+                        <HorizontalScrollView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:scrollbars="none">
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnEqFlat"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:layout_marginEnd="6dp"
+                                    android:text="Flat"
+                                    android:textColor="@color/primary"
+                                    android:textSize="12sp"
+                                    app:strokeColor="@color/primary"
+                                    app:cornerRadius="20dp" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnEqBass"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:layout_marginEnd="6dp"
+                                    android:text="Bass Boost"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12sp"
+                                    app:strokeColor="@color/border_muted"
+                                    app:cornerRadius="20dp" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnEqVocal"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:layout_marginEnd="6dp"
+                                    android:text="Vocal Clarity"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12sp"
+                                    app:strokeColor="@color/border_muted"
+                                    app:cornerRadius="20dp" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnEqGaming"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:layout_marginEnd="6dp"
+                                    android:text="Gaming"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12sp"
+                                    app:strokeColor="@color/border_muted"
+                                    app:cornerRadius="20dp" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnEqMovie"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:text="Movie"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12sp"
+                                    app:strokeColor="@color/border_muted"
+                                    app:cornerRadius="20dp" />
+                            </LinearLayout>
+                        </HorizontalScrollView>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Reverse PC Control Remote Hub Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="20dp"
+                    app:cardBackgroundColor="@color/surface"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="@color/border_muted">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PC Desktop Master Remote Control"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="12dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnPcMute"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="4dp"
+                                android:text="MUTE PC"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                app:strokeColor="@color/border_muted"
+                                app:cornerRadius="22dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnPcVolDown"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_weight="1"
+                                android:layout_marginHorizontal="2dp"
+                                android:text="VOL -"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                app:strokeColor="@color/border_muted"
+                                app:cornerRadius="22dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnPcVolUp"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_weight="1"
+                                android:layout_marginHorizontal="2dp"
+                                android:text="VOL +"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                app:strokeColor="@color/border_muted"
+                                app:cornerRadius="22dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnPcMediaPlay"
+                                style="@style/Widget.Material3.Button.OutlinedButton"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:text="⏯ PLAY"
+                                android:textColor="@color/primary"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                app:strokeColor="@color/primary"
+                                app:cornerRadius="22dp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

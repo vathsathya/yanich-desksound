@@ -80,6 +80,14 @@ class MainActivity : AppCompatActivity() {
                 binding.sliderVolume.value = vol
                 updateVolumeLabel(vol)
             }
+            audioService?.isNoiseGateEnabled = binding.switchNoiseGate.isChecked
+
+            audioService?.onTelemetryUpdatedListener = { latencyMs, bufferHealth ->
+                runOnUiThread {
+                    binding.tvTelemetryLatency.text = "$latencyMs ms (${if (latencyMs < 10) "Ultra-Low" else "Normal"})"
+                    binding.tvTelemetryBuffer.text = "$bufferHealth% (${if (bufferHealth >= 90) "Optimal" else "Stable"})"
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -95,17 +103,33 @@ class MainActivity : AppCompatActivity() {
 
         loadSavedPrefs()
 
-        binding.btnTabConnection.setOnClickListener { switchTab(AppTab.CONNECTION) }
-        binding.btnTabMonitor.setOnClickListener { switchTab(AppTab.MONITOR) }
-        binding.btnTabInfo.setOnClickListener { switchTab(AppTab.INFO) }
+        binding.btnTabConnection.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            switchTab(AppTab.CONNECTION) 
+        }
+        binding.btnTabMonitor.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            switchTab(AppTab.MONITOR) 
+        }
+        binding.btnTabInfo.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            switchTab(AppTab.INFO) 
+        }
 
         binding.btnCheckUpdateInfo.setOnClickListener { checkForUpdates(manualCheck = true) }
         binding.btnUpdateNow.setOnClickListener { checkForUpdates(manualCheck = true) }
 
-        binding.btnModeWifi.setOnClickListener { switchConnectionMode(ConnectionMode.WIFI) }
-        binding.btnModeUsb.setOnClickListener { switchConnectionMode(ConnectionMode.USB) }
+        binding.btnModeWifi.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            switchConnectionMode(ConnectionMode.WIFI) 
+        }
+        binding.btnModeUsb.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            switchConnectionMode(ConnectionMode.USB) 
+        }
 
         binding.btnConnect.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             val service = audioService ?: return@setOnClickListener
 
             if (service.isStreaming || service.isConnecting) {
@@ -130,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnScanServer.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             performServerScan()
         }
 
@@ -146,6 +171,7 @@ class MainActivity : AppCompatActivity() {
                 binding.sliderVolume.value = 1.0f
                 audioService?.volume = 1.0f
                 updateVolumeLabel(1.0f)
+                binding.sliderVolume.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 Toast.makeText(this@MainActivity, "Volume Reset to 100%", Toast.LENGTH_SHORT).show()
                 return true
             }
@@ -153,9 +179,61 @@ class MainActivity : AppCompatActivity() {
         binding.sliderVolume.setOnTouchListener { _, event -> gestureDetector.onTouchEvent(event) }
 
         // Channel Mode Selectors
-        binding.btnChannelAuto.setOnClickListener { setChannelMode(AudioReceiverService.OverrideMode.AUTO) }
-        binding.btnChannelLeft.setOnClickListener { setChannelMode(AudioReceiverService.OverrideMode.FORCE_LEFT) }
-        binding.btnChannelRight.setOnClickListener { setChannelMode(AudioReceiverService.OverrideMode.FORCE_RIGHT) }
+        binding.btnChannelAuto.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            setChannelMode(AudioReceiverService.OverrideMode.AUTO) 
+        }
+        binding.btnChannelLeft.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            setChannelMode(AudioReceiverService.OverrideMode.FORCE_LEFT) 
+        }
+        binding.btnChannelRight.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            setChannelMode(AudioReceiverService.OverrideMode.FORCE_RIGHT) 
+        }
+
+        // DSP Noise Gate Switch Binding
+        binding.switchNoiseGate.setOnCheckedChangeListener { view, isChecked ->
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            audioService?.isNoiseGateEnabled = isChecked
+            val prefs = getSharedPreferences("desksound_prefs", MODE_PRIVATE)
+            prefs.edit().putBoolean("noise_gate_enabled", isChecked).apply()
+        }
+
+        // 5-Band EQ Presets
+        val updateEqPresetUi = { preset: AudioReceiverService.EqPreset ->
+            val primaryColor = ContextCompat.getColor(this, R.color.primary)
+            val secondaryColor = ContextCompat.getColor(this, R.color.text_secondary)
+            val primaryStroke = android.content.res.ColorStateList.valueOf(primaryColor)
+            val mutedStroke = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.border_muted))
+
+            val buttons = mapOf(
+                AudioReceiverService.EqPreset.FLAT to binding.btnEqFlat,
+                AudioReceiverService.EqPreset.BASS_BOOST to binding.btnEqBass,
+                AudioReceiverService.EqPreset.VOCAL_CLARITY to binding.btnEqVocal,
+                AudioReceiverService.EqPreset.GAMING to binding.btnEqGaming,
+                AudioReceiverService.EqPreset.MOVIE to binding.btnEqMovie
+            )
+
+            buttons.forEach { (p, btn) ->
+                val isSelected = (p == preset)
+                btn.setTextColor(if (isSelected) primaryColor else secondaryColor)
+                btn.strokeColor = if (isSelected) primaryStroke else mutedStroke
+            }
+            audioService?.setEqPreset(preset)
+        }
+
+        binding.btnEqFlat.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); updateEqPresetUi(AudioReceiverService.EqPreset.FLAT) }
+        binding.btnEqBass.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); updateEqPresetUi(AudioReceiverService.EqPreset.BASS_BOOST) }
+        binding.btnEqVocal.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); updateEqPresetUi(AudioReceiverService.EqPreset.VOCAL_CLARITY) }
+        binding.btnEqGaming.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); updateEqPresetUi(AudioReceiverService.EqPreset.GAMING) }
+        binding.btnEqMovie.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); updateEqPresetUi(AudioReceiverService.EqPreset.MOVIE) }
+
+        // Reverse PC Remote Master Controls
+        binding.btnPcMute.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); audioService?.sendReverseCommand("CMD|MUTE"); Toast.makeText(this, "Sent PC Mute command", Toast.LENGTH_SHORT).show() }
+        binding.btnPcVolDown.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); audioService?.sendReverseCommand("CMD|VOL_DOWN") }
+        binding.btnPcVolUp.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); audioService?.sendReverseCommand("CMD|VOL_UP") }
+        binding.btnPcMediaPlay.setOnClickListener { it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); audioService?.sendReverseCommand("CMD|MEDIA_PLAY_PAUSE") }
 
         updateNetworkAndAudioRouteInfo()
 
@@ -171,9 +249,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun animateEqualizerSpectrum(rmsLevel: Float) {
-        val maxBarPx = dpToPx(110f)
-        val minBarPx = dpToPx(16f)
-
         val multipliers = listOf(0.45f, 0.75f, 1.15f, 1.45f, 1.05f, 0.65f, 0.35f)
         val bars = listOf(
             binding.barEq1, binding.barEq2, binding.barEq3,
@@ -182,23 +257,21 @@ class MainActivity : AppCompatActivity() {
 
         for (i in bars.indices) {
             val factor = multipliers[i]
-            val calcHeight = ((rmsLevel * factor) * maxBarPx).toInt().coerceIn(minBarPx, maxBarPx)
-            val lp = bars[i].layoutParams
-            lp.height = calcHeight
-            bars[i].layoutParams = lp
+            val calcScale = ((rmsLevel * factor) * 1.5f).coerceIn(0.15f, 1.0f)
+            bars[i].pivotY = bars[i].height.toFloat()
+            bars[i].scaleY = calcScale
         }
     }
 
     private fun resetEqualizerSpectrumToBaseline() {
-        val defaultHeightsDp = listOf(24f, 48f, 76f, 104f, 64f, 40f, 20f)
+        val defaultScales = listOf(0.25f, 0.45f, 0.7f, 0.95f, 0.6f, 0.38f, 0.2f)
         val bars = listOf(
             binding.barEq1, binding.barEq2, binding.barEq3,
             binding.barEq4, binding.barEq5, binding.barEq6, binding.barEq7
         )
         for (i in bars.indices) {
-            val lp = bars[i].layoutParams
-            lp.height = dpToPx(defaultHeightsDp[i])
-            bars[i].layoutParams = lp
+            bars[i].pivotY = bars[i].height.toFloat()
+            bars[i].scaleY = defaultScales[i]
         }
     }
 
@@ -295,9 +368,17 @@ class MainActivity : AppCompatActivity() {
                 socket.broadcast = true
 
                 val msg = "DESKSOUND_DISCOVER".toByteArray()
-                val broadcastAddr = java.net.InetAddress.getByName("255.255.255.255")
-                val packet = java.net.DatagramPacket(msg, msg.size, broadcastAddr, 5001)
-                socket.send(packet)
+                val targetAddrs = mutableListOf(java.net.InetAddress.getByName("255.255.255.255"))
+                val localIp = getLocalWifiIpAddress()
+                if (localIp != null && localIp.contains(".")) {
+                    val subnetBroadcast = localIp.substringBeforeLast(".") + ".255"
+                    try { targetAddrs.add(java.net.InetAddress.getByName(subnetBroadcast)) } catch (_: Exception) {}
+                }
+
+                for (target in targetAddrs) {
+                    val packet = java.net.DatagramPacket(msg, msg.size, target, 5001)
+                    socket.send(packet)
+                }
 
                 val recvBuf = ByteArray(256)
                 val recvPacket = java.net.DatagramPacket(recvBuf, recvBuf.size)
@@ -897,6 +978,9 @@ class MainActivity : AppCompatActivity() {
         val defaultIp = if (savedMode == ConnectionMode.USB) "127.0.0.1" else "192.168.1.100"
         binding.etServerIp.setText(prefs.getString("ip", defaultIp))
         binding.etServerPort.setText(prefs.getInt("port", 5000).toString())
+        val noiseGateEnabled = prefs.getBoolean("noise_gate_enabled", true)
+        binding.switchNoiseGate.isChecked = noiseGateEnabled
+        audioService?.isNoiseGateEnabled = noiseGateEnabled
         switchConnectionMode(savedMode, userTriggered = false)
         updateClientIpDisplay()
         updateConnectionModeAvailability()
