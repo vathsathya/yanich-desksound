@@ -27,6 +27,8 @@ g++ -O3 -std=c++17 \
   -Iserver/include \
   -Iserver/thirdparty/imgui \
   -lglfw -lGL -lpulse-simple -lpulse -lpthread -ldl \
+  -o "yanich-desksound_v${VERSION}-linux-x64"
+
 echo "[+] Linux Unified Server compiled successfully: yanich-desksound_v${VERSION}-linux-x64"
 
 echo "[2/2] Packaging Linux Tarball Archive..."
