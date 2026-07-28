@@ -77,6 +77,7 @@ jobs:
           path: |
             yanich-desksound_v*.exe
             yanich-desksound_v*.apk
+          if-no-files-found: warn
 
   build-linux:
     name: Build Linux Server Binary & Package
@@ -102,6 +103,7 @@ jobs:
           path: |
             yanich-desksound_v*-linux-x64
             yanich-desksound_v*-linux-x64.tar.gz
+          if-no-files-found: warn
 
   publish-release:
     name: Publish GitHub Release
