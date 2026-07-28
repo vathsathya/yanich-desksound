@@ -335,12 +335,20 @@ void NetworkServer::BroadcastAudio(const float* samples, size_t frames, int chan
     }
 
     static auto lastBitrateCalc = std::chrono::steady_clock::now();
+    static uint32_t packetsSentCounter = 0;
+    packetsSentCounter += (uint32_t)m_clients.size();
+
     auto now = std::chrono::steady_clock::now();
     std::chrono::duration<float> elapsed = now - lastBitrateCalc;
     if (elapsed.count() >= 1.0f) {
         uint64_t bytes = m_totalBytesSent.exchange(0);
         float mbps = (bytes * 8.0f) / (1024.0f * 1024.0f * elapsed.count());
-        m_bitrateMbps.store(mbps > 0.1f ? mbps : 0.8f);
+        m_bitrateMbps.store(mbps > 0.01f ? mbps : (m_clients.empty() ? 0.0f : 0.8f));
+
+        int pps = (int)(packetsSentCounter / elapsed.count());
+        m_packetsPerSec.store(m_clients.empty() ? 0 : (std::max)(128, pps));
+        packetsSentCounter = 0;
+
         lastBitrateCalc = now;
     }
 }

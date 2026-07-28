@@ -337,7 +337,13 @@ class AudioReceiverService : Service() {
                     updateNotification("Streaming desktop audio from $connectedIp:$port")
 
                     initAudioTrack()
-                    readAudioLoop(connectedSock!!.getInputStream())
+                    try {
+                        readAudioLoop(connectedSock!!.getInputStream())
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Audio stream session ended: ${e.message}")
+                    } finally {
+                        isStreaming = false
+                    }
                     break
                 }
 
@@ -403,7 +409,6 @@ class AudioReceiverService : Service() {
         // Read 32-byte format negotiation header from server
         var sampleRate = 48000
         var channels = 2
-        var isFloat = true
 
         val headerBuf = ByteArray(32)
         var headerBytes = 0
@@ -420,8 +425,6 @@ class AudioReceiverService : Service() {
                 if (parts.size >= 4) {
                     sampleRate = parts[1].toIntOrNull() ?: 48000
                     channels = parts[2].toIntOrNull() ?: 2
-                    val bits = parts[3].trim().toIntOrNull() ?: 32
-                    isFloat = (bits == 32)
                     val modeStr = if (parts.size >= 5) parts[4].trim() else "STEREO"
                     val channelDisplay = when (modeStr) {
                         "LEFT" -> "Left Channel (L)"
@@ -476,7 +479,7 @@ class AudioReceiverService : Service() {
             var hRead = 0
             while (hRead < 8 && isStreaming && isActive) {
                 val r = inputStream.read(headerBuffer, hRead, 8 - hRead)
-                if (r == -1) throw Exception("Server closed socket stream")
+                if (r == -1) return@withContext
                 hRead += r
             }
 
@@ -485,7 +488,8 @@ class AudioReceiverService : Service() {
             val audioLength = headerBb.int
 
             if (audioLength <= 0 || audioLength > 65536) {
-                throw Exception("Invalid audio packet length: $audioLength")
+                Log.w(TAG, "Invalid audio packet length received: $audioLength")
+                return@withContext
             }
 
             if (modeTag != currentServerTag) {
@@ -501,7 +505,7 @@ class AudioReceiverService : Service() {
                 }
             }
 
-            // 2. Read exactly audioLength bytes of Float PCM Audio payload
+            // 2. Read exactly audioLength bytes of 16-bit PCM Audio payload
             if (pcmBuffer.size < audioLength) {
                 pcmBuffer = ByteArray(audioLength)
             }
@@ -509,23 +513,23 @@ class AudioReceiverService : Service() {
             var pcmRead = 0
             while (pcmRead < audioLength && isStreaming && isActive) {
                 val r = inputStream.read(pcmBuffer, pcmRead, audioLength - pcmRead)
-                if (r == -1) throw Exception("Server closed socket stream")
+                if (r == -1) return@withContext
                 pcmRead += r
             }
 
             if (pcmRead > 0) {
-                val floatCount = pcmRead / 4
-                val frameCount = floatCount / 2
-                if (shortBuffer.size < floatCount) {
-                    shortBuffer = ShortArray(floatCount)
-                    floatBuffer = FloatArray(floatCount)
+                val totalShorts = pcmRead / 2
+                val frameCount = totalShorts / 2
+                if (shortBuffer.size < totalShorts) {
+                    shortBuffer = ShortArray(totalShorts)
+                    floatBuffer = FloatArray(totalShorts)
                 }
 
                 val pcmBb = ByteBuffer.wrap(pcmBuffer, 0, pcmRead).order(ByteOrder.LITTLE_ENDIAN)
                 val curOverride = overrideMode
                 for (i in 0 until frameCount) {
-                    var sampleL = pcmBb.float
-                    var sampleR = pcmBb.float
+                    var sampleL = pcmBb.short / 32768.0f
+                    var sampleR = pcmBb.short / 32768.0f
 
                     when (curOverride) {
                         OverrideMode.FORCE_LEFT -> { sampleR = sampleL }
@@ -563,8 +567,7 @@ class AudioReceiverService : Service() {
                     sampleL = (Math.tanh(sampleL.toDouble()).toFloat()) * 0.85f
                     sampleR = (Math.tanh(sampleR.toDouble()).toFloat()) * 0.85f
 
-                    // 5. Convert 32-bit Float (-1.0f..1.0f) to 16-bit Signed Integer (-32768..32767)
-                    // Eliminates Android HAL Float underflow ground hum completely!
+                    // 5. Convert back to 16-bit Signed Integer (-32768..32767) for AudioTrack
                     val shortL = (sampleL.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
                     val shortR = (sampleR.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt().toShort()
 
@@ -575,17 +578,17 @@ class AudioReceiverService : Service() {
                 }
 
                 // Play back 16-bit Integer PCM frame block (100% compatible with all Android DACs)
-                audioTrack?.write(shortBuffer, 0, floatCount, AudioTrack.WRITE_BLOCKING)
+                audioTrack?.write(shortBuffer, 0, totalShorts, AudioTrack.WRITE_BLOCKING)
 
                 // Measure live audio level for VU meter
                 val now = System.currentTimeMillis()
                 if (now - lastLevelReportTime > 40) {
                     lastLevelReportTime = now
                     var sumSquare = 0.0f
-                    for (i in 0 until floatCount) {
+                    for (i in 0 until totalShorts) {
                         sumSquare += floatBuffer[i] * floatBuffer[i]
                     }
-                    val rms = Math.sqrt((sumSquare / floatCount).toDouble()).toFloat()
+                    val rms = Math.sqrt((sumSquare / totalShorts).toDouble()).toFloat()
                     val normLevel = (rms * 3.0f).coerceIn(0.0f, 1.0f)
                     serviceScope.launch(Dispatchers.Main) {
                         onAudioLevelListener?.invoke(normLevel)

@@ -16,15 +16,16 @@ namespace DesignSystem {
 bool PrimaryButton(const char* label, ImVec2 size = ImVec2(0.0f, 0.0f));
 bool DangerButton(const char* label, ImVec2 size = ImVec2(0.0f, 0.0f));
 bool GhostButton(const char* label, ImVec2 size = ImVec2(0.0f, 0.0f));
-bool DrawServerButton(bool isRunning, float width = 0.0f);
+bool DrawServerButton(bool isRunning, float width = 0.0f, float height = 0.0f);
 
 // Controls
-bool ModernSlider(const char* label, const char* id, float* v, float v_min, float v_max, float default_val, const char* format = "%.0f%%");
+bool ModernSlider(const char* label, const char* id, float* v, float v_min, float v_max, float default_val, const char* format = "%.0f%%", ImVec4 activeColor = DesignTokens::AccentPrimary);
+bool VolumeSlider(const char* label, const char* id, float* v, float v_min, float v_max, float default_val, float width = 0.0f, ImVec4 activeColor = DesignTokens::AccentPrimary, bool isMuted = false);
 bool ToggleSwitch(const char* label, bool* v);
 bool IPChip(const char* labelId, const std::string& ipStr);
 
 // Audio & Telemetry
-void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float& peakHoldLevel, ImVec4 baseColor, int segments = 36);
+void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float& peakHoldLevel, ImVec4 baseColor, int segments = 36, float customWidth = 0.0f);
 void MetricCard(const char* title, const char* valueStr, const float* sparkValues, int count, ImVec4 color, ImVec2 cardSize);
 
 // Feedback & Containers

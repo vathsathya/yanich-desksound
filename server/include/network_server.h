@@ -39,6 +39,7 @@ public:
     void SetActive(bool active) { m_active.store(active); }
 
     float GetBitrateMbps() const { return m_bitrateMbps.load(); }
+    int GetPacketsPerSec() const { return m_packetsPerSec.load(); }
 
 private:
     NetworkServer();
@@ -58,6 +59,7 @@ private:
     std::vector<std::string> m_localIps;
 
     std::atomic<float> m_bitrateMbps{ 0.8f };
+    std::atomic<int> m_packetsPerSec{ 0 };
     std::atomic<uint64_t> m_totalBytesSent{ 0 };
 
     std::thread m_acceptThread;

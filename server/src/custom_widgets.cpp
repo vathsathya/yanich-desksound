@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdio>
+#include <unordered_map>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -58,10 +59,10 @@ bool DangerButton(const char* label, ImVec2 size) {
 }
 
 bool GhostButton(const char* label, ImVec2 size) {
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, CardElevated);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.20f, 0.28f, 0.40f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_Text, TextSecondary);
+    ImGui::PushStyleColor(ImGuiCol_Button, CardElevated);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.28f, 0.40f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentPrimary);
+    ImGui::PushStyleColor(ImGuiCol_Text, TextPrimary);
     
     bool res = ImGui::Button(label, size);
     
@@ -69,19 +70,22 @@ bool GhostButton(const char* label, ImVec2 size) {
     return res;
 }
 
-bool DrawServerButton(bool isRunning, float width) {
+bool DrawServerButton(bool isRunning, float width, float height) {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems) return false;
 
     if (width <= 0.0f) {
         width = ImGui::GetContentRegionAvail().x;
     }
+    if (height <= 0.0f) {
+        height = ServerBtnHeight;
+    }
 
     ImGuiContext& g = *GImGui;
     const ImGuiID id = window->GetID(isRunning ? "##StopServerBtn" : "##StartServerBtn");
 
     ImVec2 pos = window->DC.CursorPos;
-    ImVec2 size = ImVec2(width, ServerBtnHeight);
+    ImVec2 size = ImVec2(width, height);
 
     const ImRect bb(pos, ImVec2(pos.x + size.x, pos.y + size.y));
     ImGui::ItemSize(bb, g.Style.FramePadding.y);
@@ -120,18 +124,111 @@ bool DrawServerButton(bool isRunning, float width) {
     return pressed;
 }
 
-bool ModernSlider(const char* label, const char* idStr, float* v, float v_min, float v_max, float default_val, const char* format) {
+bool ModernSlider(const char* label, const char* idStr, float* v, float v_min, float v_max, float default_val, const char* format, ImVec4 activeColor) {
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float width = ImGui::CalcItemWidth();
+
     bool changed = ImGui::SliderFloat(idStr, v, v_min, v_max, format);
     
+    // Custom filled accent progress track
+    if (width > 0.0f) {
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        float grabH = ImGui::GetFrameHeight();
+        float norm = (*v - v_min) / (v_max - v_min);
+        norm = (std::max)(0.0f, (std::min)(1.0f, norm));
+        
+        float trackH = 6.0f;
+        float trackY = pos.y + (grabH - trackH) * 0.5f;
+        float fillW = std::max(4.0f, width * norm);
+        
+        ImU32 colFill = ImGui::ColorConvertFloat4ToU32(activeColor);
+        drawList->AddRectFilled(ImVec2(pos.x + 2.0f, trackY), ImVec2(pos.x + fillW, trackY + trackH), colFill, 3.0f);
+    }
+
     // Double click to reset slider to default value
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         *v = default_val;
         changed = true;
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Double-click to reset (%s)", label);
+        ImGui::SetTooltip("Double-click to reset %s", label);
     }
     return changed;
+}
+
+bool VolumeSlider(const char* label, const char* idStr, float* v, float v_min, float v_max, float default_val, float width, ImVec4 activeColor, bool isMuted) {
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems) return false;
+
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = window->GetID(idStr);
+
+    float height = 24.0f;
+    if (width <= 0.0f) width = ImGui::CalcItemWidth();
+
+    const ImVec2 pos = window->DC.CursorPos;
+    const ImRect bb(pos, ImVec2(pos.x + width, pos.y + height));
+
+    ImGui::ItemSize(bb, g.Style.FramePadding.y);
+    if (!ImGui::ItemAdd(bb, id)) return false;
+
+    bool hovered, held;
+    bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, ImGuiButtonFlags_None);
+
+    if (held) {
+        float mouseX = g.IO.MousePos.x;
+        float norm = (mouseX - pos.x) / width;
+        norm = (std::max)(0.0f, (std::min)(1.0f, norm));
+        *v = v_min + norm * (v_max - v_min);
+        ImGui::MarkItemEdited(id);
+    }
+
+    if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        *v = default_val;
+        ImGui::MarkItemEdited(id);
+    }
+
+    float norm = (*v - v_min) / (v_max - v_min);
+    norm = (std::max)(0.0f, (std::min)(1.0f, norm));
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+    ImVec4 effectiveActiveColor = isMuted ? ImVec4(0.50f, 0.22f, 0.30f, 0.85f) : activeColor;
+
+    // 1. Sleek 6px Dark Trough Track
+    float trackH = 6.0f;
+    float trackY = pos.y + (height - trackH) * 0.5f;
+    ImU32 colTrough = ImGui::ColorConvertFloat4ToU32(ImVec4(0.12f, 0.16f, 0.24f, 1.00f));
+    drawList->AddRectFilled(ImVec2(pos.x, trackY), ImVec2(pos.x + width, trackY + trackH), colTrough, 3.0f);
+
+    // 2. Vibrant Filled Active Track
+    float fillW = (std::max)(4.0f, width * norm);
+    ImU32 colActive = ImGui::ColorConvertFloat4ToU32(effectiveActiveColor);
+    drawList->AddRectFilled(ImVec2(pos.x, trackY), ImVec2(pos.x + fillW, trackY + trackH), colActive, 3.0f);
+
+    if (hovered) {
+        ImVec4 glowCol = effectiveActiveColor;
+        glowCol.w = 0.25f;
+        drawList->AddRectFilled(ImVec2(pos.x - 1.0f, trackY - 1.0f), ImVec2(pos.x + fillW + 1.0f, trackY + trackH + 1.0f), ImGui::ColorConvertFloat4ToU32(glowCol), 4.0f);
+    }
+
+    // 3. Smooth Pill/Circle Grab Thumb Knob with Hover Scale
+    float thumbR = (hovered || held) ? 8.5f : 7.0f;
+    float thumbX = pos.x + norm * width;
+    thumbX = (std::max)(pos.x + thumbR, (std::min)(pos.x + width - thumbR, thumbX));
+    float thumbY = pos.y + height * 0.5f;
+
+    ImU32 colThumb = ImGui::ColorConvertFloat4ToU32(isMuted ? ImVec4(0.75f, 0.55f, 0.60f, 1.0f) : TextPrimary);
+    if (hovered || held) {
+        drawList->AddCircleFilled(ImVec2(thumbX, thumbY), thumbR + 3.0f, ImGui::ColorConvertFloat4ToU32(ImVec4(effectiveActiveColor.x, effectiveActiveColor.y, effectiveActiveColor.z, 0.40f)));
+    }
+    drawList->AddCircleFilled(ImVec2(thumbX, thumbY), thumbR, colThumb);
+
+    if (hovered) {
+        ImGui::SetTooltip("%s: %.0f%%%s (Double-click to reset)", label, *v, isMuted ? " [MUTED]" : "");
+    }
+
+    return held || pressed;
 }
 
 bool ToggleSwitch(const char* label, bool* v) {
@@ -180,23 +277,36 @@ bool ToggleSwitch(const char* label, bool* v) {
     return pressed;
 }
 
+#include <unordered_map>
+
 bool IPChip(const char* labelId, const std::string& ipStr) {
     ImGui::PushID(labelId);
     
-    std::string textLabel = ipStr + "  [Copy]";
+    static std::unordered_map<std::string, float> copyTimers;
+    float currentTime = (float)ImGui::GetTime();
+    bool isRecentlyCopied = (copyTimers.find(labelId) != copyTimers.end()) && (currentTime - copyTimers[labelId] < 1.5f);
+
+    std::string textLabel = isRecentlyCopied ? (ipStr + "  [Copied!]") : (ipStr + "  [Copy]");
     ImVec2 textSize = ImGui::CalcTextSize(textLabel.c_str());
     ImVec2 chipSize = ImVec2(textSize.x + 20.0f, 32.0f);
     
-    ImGui::PushStyleColor(ImGuiCol_Button, CardElevated);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.28f, 0.40f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentPrimary);
+    if (isRecentlyCopied) {
+        ImGui::PushStyleColor(ImGuiCol_Button, AccentSecondary);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, AccentSecondary);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentSecondary);
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, CardElevated);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.28f, 0.40f, 1.00f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, AccentPrimary);
+    }
 
     bool clicked = ImGui::Button(textLabel.c_str(), ImVec2(chipSize.x, chipSize.y));
     if (clicked) {
         CopyToClipboardWin(ipStr);
+        copyTimers[labelId] = currentTime;
     }
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Click to copy %s", ipStr.c_str());
+        ImGui::SetTooltip(isRecentlyCopied ? "Copied to clipboard!" : "Click to copy %s", ipStr.c_str());
     }
     
     ImGui::PopStyleColor(3);
@@ -204,7 +314,7 @@ bool IPChip(const char* labelId, const std::string& ipStr) {
     return clicked;
 }
 
-void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float& peakHoldLevel, ImVec4 baseColor, int segments) {
+void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float& peakHoldLevel, ImVec4 baseColor, int segments, float customWidth) {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems) return;
 
@@ -218,9 +328,10 @@ void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float
     }
 
     ImGui::TextColored(TextSecondary, "%s", label);
-    ImGui::SameLine(60.0f);
+    ImGui::SameLine(50.0f);
 
-    float availW = ImGui::GetContentRegionAvail().x - 65.0f;
+    float labelW = 50.0f;
+    float availW = (customWidth > 0.0f) ? (customWidth - labelW) : (ImGui::GetContentRegionAvail().x - labelW);
     float meterH = 14.0f;
     ImVec2 pos = ImGui::GetCursorScreenPos();
     
@@ -236,7 +347,9 @@ void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float
     float totalGaps = gap * (segments - 1);
     float blockW = std::max(2.0f, (availW - totalGaps) / (float)segments);
 
-    ImU32 colInactive = ImGui::ColorConvertFloat4ToU32(ImVec4(0.12f, 0.16f, 0.24f, 0.70f));
+    // Highly visible inactive LED block track (#25354D) with subtle border
+    ImU32 colInactive = ImGui::ColorConvertFloat4ToU32(ImVec4(0.15f, 0.21f, 0.30f, 1.00f));
+    ImU32 colInactiveBorder = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.08f));
     ImU32 colPeak = ImGui::ColorConvertFloat4ToU32(ImVec4(0.98f, 0.98f, 0.99f, 0.95f));
 
     for (int i = 0; i < segments; ++i) {
@@ -255,22 +368,25 @@ void LEDVuMeter(const char* label, float currentLevel, float& smoothLevel, float
         }
 
         ImU32 colActive = ImGui::ColorConvertFloat4ToU32(segColor);
-        ImU32 colGlow = ImGui::ColorConvertFloat4ToU32(ImVec4(segColor.x, segColor.y, segColor.z, 0.25f));
+        ImU32 colGlow = ImGui::ColorConvertFloat4ToU32(ImVec4(segColor.x, segColor.y, segColor.z, 0.30f));
 
         if (i < activeSegments) {
             drawList->AddRectFilled(ImVec2(x0 - 0.5f, y0 - 0.5f), ImVec2(x1 + 0.5f, y1 + 0.5f), colGlow, 3.0f);
             drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), colActive, 2.5f);
-        } else if (i == peakSegment && peakSegment > 0) {
-            drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), colPeak, 2.5f);
         } else {
+            // Draw visible dark slate inactive track block
             drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), colInactive, 2.5f);
+            drawList->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), colInactiveBorder, 2.5f);
+        }
+
+        if (i == peakSegment && peakSegment > activeSegments && peakHoldLevel > 0.02f) {
+            drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), colPeak, 2.5f);
         }
     }
 
     ImGui::ItemSize(ImVec2(availW, meterH));
 
     ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 55.0f);
     ImGui::TextColored(baseColor, "%3d%%", (int)(clampedLevel * 100.0f));
 }
 
@@ -322,20 +438,24 @@ void EmptyState(ImVec2 containerSize, const char* title, const char* subtitle) {
     ImVec2 pos = ImGui::GetCursorScreenPos();
     ImDrawList* drawList = ImGui::GetWindowDrawList();
 
-    ImVec2 center = ImVec2(pos.x + containerSize.x * 0.5f, pos.y + containerSize.y * 0.35f);
+    // Centered Phone + WiFi Outline Watermark (10% Opacity)
+    ImVec2 center = ImVec2(pos.x + containerSize.x * 0.5f, pos.y + containerSize.y * 0.30f);
     ImU32 watermarkCol = ImGui::ColorConvertFloat4ToU32(ImVec4(0.58f, 0.64f, 0.72f, 0.12f));
 
+    // Phone Outline
     drawList->AddRect(ImVec2(center.x - 14.0f, center.y - 20.0f), ImVec2(center.x + 14.0f, center.y + 20.0f), watermarkCol, 4.0f, 0, 2.0f);
     drawList->AddCircleFilled(ImVec2(center.x, center.y + 15.0f), 2.0f, watermarkCol);
 
-    drawList->AddCircle(center, 32.0f, watermarkCol, 0, 1.5f);
-    drawList->AddCircle(center, 44.0f, watermarkCol, 0, 1.5f);
+    // WiFi Arcs Outline
+    drawList->AddCircle(center, 30.0f, watermarkCol, 0, 1.5f);
+    drawList->AddCircle(center, 42.0f, watermarkCol, 0, 1.5f);
 
+    // Centered Title & Subtitle - Aligned safely within container height
     ImVec2 tSize = ImGui::CalcTextSize(title);
     ImVec2 sSize = ImGui::CalcTextSize(subtitle);
 
-    drawList->AddText(ImVec2(center.x - tSize.x * 0.5f, pos.y + containerSize.y * 0.65f), ImGui::ColorConvertFloat4ToU32(TextPrimary), title);
-    drawList->AddText(ImVec2(center.x - sSize.x * 0.5f, pos.y + containerSize.y * 0.78f), ImGui::ColorConvertFloat4ToU32(TextSecondary), subtitle);
+    drawList->AddText(ImVec2(center.x - tSize.x * 0.5f, pos.y + containerSize.y * 0.56f), ImGui::ColorConvertFloat4ToU32(TextPrimary), title);
+    drawList->AddText(ImVec2(center.x - sSize.x * 0.5f, pos.y + containerSize.y * 0.70f), ImGui::ColorConvertFloat4ToU32(TextSecondary), subtitle);
 
     ImGui::ItemSize(containerSize);
 }
@@ -353,7 +473,13 @@ void StatusPill(bool isRunning) {
     float badgeH = 22.0f;
 
     drawList->AddRectFilled(pos, ImVec2(pos.x + badgeW, pos.y + badgeH), ImGui::ColorConvertFloat4ToU32(bgCol), PillRadius);
-    drawList->AddCircleFilled(ImVec2(pos.x + 10.0f, pos.y + 11.0f), 4.0f, ImGui::ColorConvertFloat4ToU32(dotCol));
+    if (isRunning) {
+        float pulseAlpha = 0.25f + 0.35f * (0.5f + 0.5f * sinf((float)ImGui::GetTime() * 4.5f));
+        ImVec4 glowCol = dotCol;
+        glowCol.w = pulseAlpha;
+        drawList->AddCircleFilled(ImVec2(pos.x + 10.0f, pos.y + 11.0f), 6.0f, ImGui::ColorConvertFloat4ToU32(glowCol));
+    }
+    drawList->AddCircleFilled(ImVec2(pos.x + 10.0f, pos.y + 11.0f), 3.5f, ImGui::ColorConvertFloat4ToU32(dotCol));
 
     ImGui::SetCursorScreenPos(ImVec2(pos.x + 18.0f, pos.y + 3.0f));
     ImGui::TextColored(dotCol, "%s", text);
@@ -370,7 +496,7 @@ void VersionBadge(const char* versionStr) {
 
 void StatusDotBadge(bool isRunning) {
     ImVec4 dotCol = isRunning ? AccentSecondary : ColorDanger;
-    ImGui::TextColored(dotCol, isRunning ? "● RUNNING" : "● STOPPED");
+    ImGui::TextColored(dotCol, isRunning ? "[RUNNING]" : "[STOPPED]");
 }
 
 void CardHeader(const char* iconSymbol, const char* title) {

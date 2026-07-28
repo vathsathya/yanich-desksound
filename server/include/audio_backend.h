@@ -27,6 +27,7 @@ public:
 
     virtual float GetPeakLevelL() const = 0;
     virtual float GetPeakLevelR() const = 0;
+    virtual void InjectTestTone() = 0;
 
     void SetDataCallback(std::function<void(const float* data, size_t frames, int channels, int sampleRate)> cb) {
         m_dataCallback = cb;

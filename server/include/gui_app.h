@@ -16,6 +16,8 @@ public:
 private:
     GuiApp() = default;
     bool m_showLogsModal{ false };
+    bool m_showSettingsModal{ false };
+    bool m_showAboutModal{ false };
 };
 
 #endif // GUI_APP_H

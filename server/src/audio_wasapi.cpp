@@ -234,6 +234,32 @@ private:
         }
     }
 
+    void InjectTestTone() override {
+        std::thread([this]() {
+            const int sampleRate = 48000;
+            const float freq = 440.0f;
+            std::vector<float> buffer(480 * 2);
+            for (int p = 0; p < 10; ++p) {
+                float maxL = 0.0f, maxR = 0.0f;
+                for (size_t i = 0; i < 480; ++i) {
+                    float t = (float)(p * 480 + i) / (float)sampleRate;
+                    float env = std::sin(3.14159f * (float)(p * 480 + i) / 4800.0f);
+                    float sample = std::sin(2.0f * 3.14159f * freq * t) * 0.70f * env;
+                    buffer[i * 2] = sample;
+                    buffer[i * 2 + 1] = sample;
+                    maxL = (std::max)(maxL, std::abs(sample));
+                    maxR = (std::max)(maxR, std::abs(sample));
+                }
+                m_peakL.store(maxL);
+                m_peakR.store(maxR);
+                if (m_dataCallback) {
+                    m_dataCallback(buffer.data(), 480, 2, sampleRate);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        }).detach();
+    }
+
     std::atomic<bool> m_running;
     std::atomic<bool> m_deviceChanged{ false };
     std::atomic<int> m_selectedIdx;

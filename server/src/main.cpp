@@ -96,7 +96,21 @@ static void ShowTrayContextMenu(HWND hwnd) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     (void)hPrevInstance; (void)lpCmdLine;
 
-    LOG_INFO("[Server] Starting Yanich DeskSound Windows Server v1.2.6 (Unified ImGui)");
+    // Single Instance Guard (Global Mutex)
+    HANDLE hSingleMutex = ::CreateMutexW(NULL, TRUE, L"Global\\YanichDeskSoundServerSingleInstanceMutex");
+    if (::GetLastError() == ERROR_ALREADY_EXISTS || ::GetLastError() == ERROR_ACCESS_DENIED) {
+        HWND existingHwnd = ::FindWindowW(L"YanichDeskSoundClass", L"Yanich DeskSound Server");
+        if (existingHwnd) {
+            if (::IsIconic(existingHwnd)) {
+                ::ShowWindow(existingHwnd, SW_RESTORE);
+            }
+            ::SetForegroundWindow(existingHwnd);
+        }
+        if (hSingleMutex) ::CloseHandle(hSingleMutex);
+        return 0; // Exit secondary duplicate process
+    }
+
+    LOG_INFO("[Server] Starting Yanich DeskSound Windows Server v1.2.7 (Unified ImGui)");
 
     // Initialize Network Audio Streaming Server
     NetworkServer::Instance().Start(5000, 5001);
@@ -114,7 +128,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Create Application Window
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, L"YanichDeskSoundClass", NULL };
     ::RegisterClassExW(&wc);
-    RECT rect = { 0, 0, 920, 750 };
+    RECT rect = { 0, 0, 920, 680 };
     ::AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
     int winWidth = rect.right - rect.left;
     int winHeight = rect.bottom - rect.top;

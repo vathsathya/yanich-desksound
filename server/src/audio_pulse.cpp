@@ -42,6 +42,8 @@ public:
         }
     }
 
+    void InjectTestTone() override {}
+
     std::vector<AudioDeviceInfo> EnumerateDevices() override {
         std::lock_guard<std::mutex> lock(m_mutex);
         std::vector<AudioDeviceInfo> list;
