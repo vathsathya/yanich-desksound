@@ -40,6 +40,8 @@ void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+#define IDI_APP_ICON 101
+
 static void InitTrayIcon(HWND hwnd) {
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize = sizeof(NOTIFYICONDATAW);
@@ -48,7 +50,10 @@ static void InitTrayIcon(HWND hwnd) {
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = WM_TRAYICON;
     
-    HICON hIcon = (HICON)::LoadImageW(GetModuleHandle(NULL), L"app_icon.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    HICON hIcon = ::LoadIconW(GetModuleHandle(NULL), MAKEINTRESOURCEW(IDI_APP_ICON));
+    if (!hIcon) {
+        hIcon = (HICON)::LoadImageW(GetModuleHandle(NULL), L"app_icon.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+    }
     if (!hIcon) {
         hIcon = ::LoadIcon(NULL, IDI_APPLICATION);
     }
@@ -126,7 +131,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     // Create Application Window
-    WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, L"YanichDeskSoundClass", NULL };
+    HICON hAppIcon = ::LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_APP_ICON));
+    WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, hInstance, hAppIcon, NULL, NULL, NULL, L"YanichDeskSoundClass", hAppIcon };
     ::RegisterClassExW(&wc);
     RECT rect = { 0, 0, 920, 680 };
     ::AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
