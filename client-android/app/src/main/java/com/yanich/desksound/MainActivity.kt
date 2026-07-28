@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var audioDeviceCallback: android.media.AudioDeviceCallback? = null
     private var hardwareStateReceiver: BroadcastReceiver? = null
+    private var downloadedApkFile: File? = null
 
     enum class AppTab {
         CONNECTION, MONITOR, INFO
@@ -84,10 +85,12 @@ class MainActivity : AppCompatActivity() {
 
             audioService?.onTelemetryUpdatedListener = { latencyMs, bufferHealth ->
                 runOnUiThread {
-                    binding.tvTelemetryLatency.text = "$latencyMs ms (${if (latencyMs < 10) "Ultra-Low" else "Normal"})"
-                    binding.tvTelemetryBuffer.text = "$bufferHealth% (${if (bufferHealth >= 90) "Optimal" else "Stable"})"
+                    binding.tvTelemetryLatency.text = "${latencyMs} ms"
+                    binding.tvTelemetryBuffer.text = "${bufferHealth}%"
                 }
             }
+
+            loadSavedPrefs()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -116,8 +119,16 @@ class MainActivity : AppCompatActivity() {
             switchTab(AppTab.INFO) 
         }
 
-        binding.btnCheckUpdateInfo.setOnClickListener { checkForUpdates(manualCheck = true) }
-        binding.btnUpdateNow.setOnClickListener { checkForUpdates(manualCheck = true) }
+        val handleUpdateClick = {
+            val apk = downloadedApkFile
+            if (apk != null && apk.exists()) {
+                promptApkInstallation(apk)
+            } else {
+                checkForUpdates(manualCheck = true)
+            }
+        }
+        binding.btnCheckUpdateInfo.setOnClickListener { handleUpdateClick() }
+        binding.btnUpdateNow.setOnClickListener { handleUpdateClick() }
 
         binding.btnModeWifi.setOnClickListener { 
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
@@ -793,9 +804,21 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 binding.progressBarUpdate.visibility = android.view.View.GONE
                 binding.btnCheckUpdateInfo.isEnabled = true
+                binding.btnUpdateNow.isEnabled = true
 
                 if (success && apkFile != null && apkFile.exists()) {
-                    binding.tvUpdateStatus.text = "ទាញយករួចរាល់! កំពុងបើកផ្ទាំង Install..."
+                    downloadedApkFile = apkFile
+                    binding.tvUpdateStatus.text = "ទាញយករួចរាល់! ចុច 'INSTALL NOW' ដើម្បីដំឡើង"
+                    binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_connected))
+
+                    val installText = "INSTALL NOW (ដំឡើងឥឡូវនេះ)"
+                    binding.btnCheckUpdateInfo.text = installText
+                    binding.btnUpdateNow.text = installText
+
+                    val primaryColor = ContextCompat.getColor(this@MainActivity, R.color.primary)
+                    binding.btnCheckUpdateInfo.backgroundTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+                    binding.btnUpdateNow.backgroundTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+
                     promptApkInstallation(apkFile)
                 } else {
                     binding.tvUpdateStatus.text = "ការទាញយកមានបញ្ហា: $errorMsg"

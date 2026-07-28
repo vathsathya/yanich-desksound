@@ -22,10 +22,19 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            storeFile file('desksound.keystore')
+            storePassword 'desksound123'
+            keyAlias '1'
+            keyPassword 'desksound123'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
